@@ -1,0 +1,3 @@
+Following flow of information, starting at ip_output and first working down the stack, then back up to top, then back down to ip_output:
+
+
