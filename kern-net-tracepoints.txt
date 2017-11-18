@@ -10,8 +10,15 @@ net/if_loop.c  L303 & 314 : if_simloop calls bpf_mtap. ASSUMING we consider BPF 
 net/if_loop.c		 L321 : if_simloop calls m_adj. This may free mbufs from the chain
 net/if_loop.c		 L353 : if_simloop may free mbuf chain
 net/if_loop.c		 L358 : if_simloop adds mbuf to the isr queue. This represents its transition into the input system
-netinet/ip_mroute.c  L306 : X_ip_mforward (alias ip_mforward) calls m_copypacket. Investigate further...
-
+netinet/ip_mroute.c L1298 : X_ip_mforward (alias ip_mforward) calls malloc for struct rtdetq (IP packet iformation - data, interface etc)
+netinet/ip_mroute.c L1306 : X_ip_mforward (alias ip_mforward) calls m_copypacket to (deep?) clone entire packet into mb0
+kern/uipc_mbuf.c	 L506 : Aside: what's with this comment? It looks like it does a deep copy to me
+netinet/ip_mroute.c L1342 : X_ip_mforward (alias ip_mforward) calls malloc for struct mfc - multicast forwarding cache structure
+netinet/ip_mroute.c L1347 : X_ip_mforward (alias ip_mforward) calls m_copy to copy header
+netinet/ip_mroute.c L1364 : X_ip_mforward (alias ip_mforward) uses socket_send to send packet to V_ip_mrouter ("multicast routing daemon"?) [and frees an mbuf once it's done]
+netinet/ip_mroute.c L1368 : X_ip_mforward (alias ip_mforward) - lots of frees in this area on error
+netinet/ip_mroute.c L1402 : X_ip_mforward (alias ip_mforward) IP packet info (with mbuf pointer) submitted to queue awaiting mfc in this area
+netinet/ip_mroute.c L1411 : X_ip_mforward (alias ip_mforward) - error related frees
 
 
 NB: looks like NETISR_IP and NETISR_IP6 may be used to receive packets
