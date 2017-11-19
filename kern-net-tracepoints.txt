@@ -1,5 +1,6 @@
 Following flow of information, starting at ip_output and first working down the stack, then back up to top, then back down to ip_output:
 
+--- IP layer entry: call to ip_output --
 
 netinet/ip_options.c L518 : ip_insertoptions may allocate a new mbuf in order to write into the packet header
 netinet/ip_output.c  L1397: ip_mloopback takes a copy of a packet mbuf so that it can send it back up the stack
@@ -22,13 +23,14 @@ netinet/ip_mroute.c L1411 : X_ip_mforward (alias ip_mforward) - error related fr
 netinet/ip_output.c  L496 : ip_output frees the packet if it is successfully forwarded to the multicast system
 netinet/ip_output.c  L512 : ip_output frees the packet if it must not be sent
 
----IPSec---
+-<IPSec>-
 netipsec/ipsec_output.c	   L470 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
 netipsec/ipsec_output.c	   L493 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
 netipsec/ipsec_output.c	   L556 : ipsec4_process_packet allows data to be accessed by the hhooks system (?) via the ctx struct
 netipsec/ipsec_output.c	   L584 : ipsec4_process_packet allows data to be accessed by the hhooks system (?) via the ctx struct
 netipsec/ipsec_output.c	   L614 : ipsec4_process_packet calls the crypto system's transformation output function to output the packet -- dig depper into this?
 netipsec/ipsec_output.c	   L621 : ipsec4_process_packet frees packet on error
+-</IPSec>-
 
 netinet/ip_output.c		   L121 : ip_output_pfil runs PFIL hooks (they might copy things around?)
 netinet/ip_output.c		   L147 : ip_output_pfil adds packet to incoming queue with netisr_queue()
@@ -41,6 +43,14 @@ netinet/ip_output.c  	   L894 : ip_fragment calls m_adj on the original packet -
 netinet/ip_output.c  	   L697 : ip_output hands mbuf to interface's if_output - packet leaves IP layer
 netinet/ip_output.c  	   L700 : ip_output frees rest of mbuf chain if we encounter an error sending
 netinet/ip_output.c  	   L724 : ip_output frees mbuf chain if we encountered an error before
+
+-- IP layer calls ip_output of specific interface --
+
+
+--- Going up network stack ---
+
+-- Interface calls netisr_dispatch --
+
 
 
 
