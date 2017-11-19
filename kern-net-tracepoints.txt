@@ -19,6 +19,16 @@ netinet/ip_mroute.c L1364 : X_ip_mforward (alias ip_mforward) uses socket_send t
 netinet/ip_mroute.c L1368 : X_ip_mforward (alias ip_mforward) - lots of frees in this area on error
 netinet/ip_mroute.c L1402 : X_ip_mforward (alias ip_mforward) IP packet info (with mbuf pointer) submitted to queue awaiting mfc in this area
 netinet/ip_mroute.c L1411 : X_ip_mforward (alias ip_mforward) - error related frees
+netinet/ip_output.c  L496 : ip_output frees the packet if it is successfully forwarded to the multicast system
+netinet/ip_output.c  L512 : ip_output frees the packet if it must not be sent
+
+---IPSec---
+netipsec/ipsec_output.c	   L470 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
+netipsec/ipsec_output.c	   L493 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
+netipsec/ipsec_output.c	   L556 : ipsec_encap allows data to be accessed by the hhooks system (?) via the ctx struct
+netipsec/ipsec_output.c	   L584 : ipsec_encap allows data to be accessed by the hhooks system (?) via the ctx struct
+
+
 
 
 NB: looks like NETISR_IP and NETISR_IP6 may be used to receive packets
