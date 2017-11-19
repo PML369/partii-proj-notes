@@ -50,6 +50,17 @@ netinet/ip_output.c  	   L724 : ip_output frees mbuf chain if we encountered an 
 --- Going up network stack ---
 
 -- Interface calls netisr_dispatch --
+net/netisr.c			   L1100 : netisr_dispatch_src may give up and free packet if protocol is disabled
+net/netisr.c			   L1047 : netisr_queue_src may give up and free packet if protocol is disabled
+net/netisr.c			   L801  : netisr_select_cpuid calls next layer up's np_m2cpuid, which may modify the packet (and therefore allocate?) - probably feasible to inspect this function for each layer 3 protocol
+net/netisr.c			   L825  : netisr_select_cpuid calls next layer up's np_m2flow, which may modify the packet (and therefore allocate?) - doesn't seem to be used by any compiled-in layer 3 protocols
+net/netisr.c			   L995  : netisr_queue_workstream may free packet if no buffer space in the work queue
+
+-- netisr completed -- 
+-- IP layer: ip_input --
+
+
+
 
 
 
