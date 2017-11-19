@@ -25,8 +25,22 @@ netinet/ip_output.c  L512 : ip_output frees the packet if it must not be sent
 ---IPSec---
 netipsec/ipsec_output.c	   L470 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
 netipsec/ipsec_output.c	   L493 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
-netipsec/ipsec_output.c	   L556 : ipsec_encap allows data to be accessed by the hhooks system (?) via the ctx struct
-netipsec/ipsec_output.c	   L584 : ipsec_encap allows data to be accessed by the hhooks system (?) via the ctx struct
+netipsec/ipsec_output.c	   L556 : ipsec4_process_packet allows data to be accessed by the hhooks system (?) via the ctx struct
+netipsec/ipsec_output.c	   L584 : ipsec4_process_packet allows data to be accessed by the hhooks system (?) via the ctx struct
+netipsec/ipsec_output.c	   L614 : ipsec4_process_packet calls the crypto system's transformation output function to output the packet -- dig depper into this?
+netipsec/ipsec_output.c	   L621 : ipsec4_process_packet frees packet on error
+
+netinet/ip_output.c		   L121 : ip_output_pfil runs PFIL hooks (they might copy things around?)
+netinet/ip_output.c		   L147 : ip_output_pfil adds packet to incoming queue with netisr_queue()
+netinet/ip_output.c		   L181 : ip_output_pfil adds packet to incoming queue with netisr_queue()
+netinet/ip_output.c  	   L661 : ip_output hands mbuf to interface's if_output - packet leaves IP layer
+netinet/ip_output.c  	   L828 : ip_fragment allocates multiple mbufs to fragment packets - need to track UID mapping here
+netinet/ip_output.c  	   L841 : ip_fragment calls m_dup_pkthdr which clones all tags (NB: will need to overwrite), maybe allocating memory for them
+netinet/ip_output.c  	   L868 : ip_fragment uses m_copym to (read only (?)) copy packet data into the fragments
+netinet/ip_output.c  	   L894 : ip_fragment calls m_adj on the original packet - this will end up freeing most of the mbuf chain
+netinet/ip_output.c  	   L697 : ip_output hands mbuf to interface's if_output - packet leaves IP layer
+netinet/ip_output.c  	   L700 : ip_output frees rest of mbuf chain if we encounter an error sending
+netinet/ip_output.c  	   L724 : ip_output frees mbuf chain if we encountered an error before
 
 
 
