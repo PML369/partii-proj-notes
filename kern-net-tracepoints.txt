@@ -59,6 +59,18 @@ net/netisr.c			   L995  : netisr_queue_workstream may free packet if no buffer s
 -- netisr completed -- 
 -- IP layer: ip_input --
 
+netinet/ip_input.c		   L472  : ip_input calls m_pullup - potential free on failure
+netinet/ip_icmp.c		   L290  : icmp_error allocates new mbuf for ICMP error reply (caused by input packet)
+netinet/ip_icmp.c		   L711  : icmp_reflect frees mbuf if packet can't be sent (bcast/multicast or similar)
+netinet/ip_icmp.c		   L799  : icmp_reflect frees mbuf if packet can't be sent (no route back)
+netinet/ip_icmp.c		   L806  : icmp_reflect shows ICMP packet to MAC system
+netinet/ip_icmp.c		   L822  : icmp_reflect allocates new mbuf to store options in if necessary
+netinet/ip_icmp.c		   L872  : icmp_reflect deletes nonpersistent mbuf tags ready for transmission
+netinet/ip_icmp.c		   L877  : icmp_reflect frees options mbuf
+netinet/ip_icmp.c		   L355  : icmp_error frees input packet on error
+netinet/ip_fastfwd.c	   L240  : ip_tryforward runs PFIL forward hooks (they might copy things around?)
+netinet/ip_fastfwd.c	   L327  : ip_tryforward runs PFIL output hooks (they might copy things around?)
+netinet/ip_fastfwd.c	   L341  : STOPPED HERE
 
 
 
