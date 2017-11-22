@@ -76,8 +76,14 @@ netinet/ip_fastfwd.c	   L447  : ip_tryforward sends packet to interface for tran
 netinet/ip_fastfwd.c	   L456  : ip_tryforward frees remaining packet fragments on error
 netinet/ip_fastfwd.c	   L475  : ip_tryforward frees packet on error
 netinet/ip_input.c		   L584  : ip_input runs PFIL input hooks (they might copy things around?)
-netinet/ip_input.c		   L604  : STOPPED HERE
-
+netinet/ip_input.c		   L940  : ip_forward frees packet on error
+netinet/ip_input.c		   L946  : ip_forward frees packet on error
+netinet/ip_input.c		   L1008 : ip_forward allocates a new header mbuf to copy the first part of the packet into
+netinet/ip_input.c		   L1016 : ip_forward frees the copy if part of the duplication fails (no data has been copied yet (confirm), so no need to tag before this point?)
+netinet/ip_input.c		   L1066 : ip_forward sends packet to ip_output to be sent
+netinet/ip_input.c		   L1080 : ip_forward frees the copied mbuf after a successful ip_output()
+netinet/ip_input.c		   L1139 : ip_forward frees the copied mbuf on error
+netinet/ip_input.c		   L1146 : ip_forward gives the copied mbuf to icmp_error to send a notification
 
 
 
