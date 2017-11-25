@@ -84,6 +84,20 @@ netinet/ip_input.c		   L1066 : ip_forward sends packet to ip_output to be sent
 netinet/ip_input.c		   L1080 : ip_forward frees the copied mbuf after a successful ip_output()
 netinet/ip_input.c		   L1139 : ip_forward frees the copied mbuf on error
 netinet/ip_input.c		   L1146 : ip_forward gives the copied mbuf to icmp_error to send a notification
+netinet/ip_options.c	   L221  : ip_dooptions frees packet on error
+netinet/ip_input.c		   L719  : ip_input frees the packet on error
+netinet/ip_input.c		   L734  : ip_input frees the packet on error
+netinet/ip_input.c		   L764  : ip_input frees the packet on error
+netinet/ip_reass.c		   L163  : ip_reass frees the packet on error
+netinet/ip_reass.c		   L183  : ip_reass frees the packet on error
+netinet/ip_reass.c		   L630  : ipq_reuse frees fragments of the packet it is kicking out
+netinet/ip_reass.c		   L295  : ASSERT: this call to m_adj will never result in a free, as it frees only if given a negative input
+netinet/ip_reass.c		   L318  : ASSERT: as above, but the logic is more complex. Given ip_len and ip_off should be >= 0, then i > 0 if the for loop body is executed
+netinet/ip_reass.c		   L326  : ip_reass frees fragment containing duplicate data
+netinet/ip_reass.c		   L654  : ipq_free frees fragments of a packet which is being dropped
+netinet/ip_reass.c		   L372  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
+netinet/ip_reass.c		   L380  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
+netinet/ip_reass.c		   L451  : ip_ress frees fragment which is being dropped
 
 
 
