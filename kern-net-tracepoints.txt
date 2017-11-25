@@ -98,9 +98,10 @@ netinet/ip_reass.c		   L654  : ipq_free frees fragments of a packet which is bei
 netinet/ip_reass.c		   L372  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
 netinet/ip_reass.c		   L380  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
 netinet/ip_reass.c		   L451  : ip_ress frees fragment which is being dropped
+netinet/ip_input.c		   L809  : ip_input passes packet up to protocol layer
+netinet/ip_input.c		   L812  : ip_input frees the packet on error
 
-
-
+-- IP layer calls specific protocol layer with packet --
 
 
 
