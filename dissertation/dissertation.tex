@@ -105,6 +105,12 @@
 	
 	\section{Background [Use Case?]}
 	
+	Nowadays, most cyberattacks from nation state actors do not take on the traditional form of a piece	of malware which tries to find a store of sensitive data and dump it back to the attacker as quickly as	possible before system administrators have time to intervene. Instead, these attacks slowly 	infiltrate the target system, hiding out of sight and learning the use patterns of normal users. They then exploit this knowledge to slowly make horizontal transfers within the target enterprise’s internal	network, and extract sensitive data from databases in such a way that the access is hard to	distinguish from normal access. Such an attack is called an Advanced Persistent Threat (APT), and can go on for months or years without system administrators realising. Eventually, it is likely that the malware will make a mistake and trigger an indicator of compromise to be observed by administrators, but by then it is difficult to tell when and how the malware entered the system, and what data it has seen. This can make impact assessments, as well as efforts to prevent a similar attack in future, very difficult.
+	
+	The Computer Laboratory has a project which is trying to combat this by building CADETS, a Causal, Adaptive, Distributed, and Efficient Tracing System, on top of the FreeBSD operating system. The system is being built to track the provenance of data by collecting metadata from computers all over the network about what processes act on what data and when. This metadata is then collected in a distributed database, where it can be analysed to trace data flows throughout the computer system. This should allow analysts to trace malware back to possible entry times and methods, which they can then analyse further.
+	
+	This project will add support for collecting metadata on network packets as they flow through the kernel	network stack. The data collected will allow users of CADETS to seek out suspicious activity which may be being used to attack a system, and will be able to provide a list of locations in kernel memory where packet data were stored. The latter allows a rapid impact assessment to be produced if a system administrator is able to determine that some malicious code had access to a particular set of kernel memory addresses, as CADETS will let the administrator infer what data may have been leaked.
+	
 	\section{The Network Stack}
 	
 	\section{Tracing as a Security Tool}
