@@ -125,6 +125,8 @@
 	
 	\section{Overall design}
 	
+	The project is to assign uniquely identifying tags to each packet as it flows through the network stack, noting that packet fragmentation/reassembly will make this more difficult. This will then allow DTrace tracepoints to read the tag on each packet when an interesting operation (broadly speaking, a memory allocation) is performed on it. From here, scripts written in DTrace's D language will be able to forward information to the CADETS userspace application for processing.
+	
 %%%%% Template version - kept for useful formatting constructs	
 	
 	\section{Overview of the files}
