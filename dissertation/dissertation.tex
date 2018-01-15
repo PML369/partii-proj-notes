@@ -227,6 +227,25 @@
 	
 	The FreeBSD website provides preinstalled images\footnote{\texttt{http://www.freebsd.org/where.html\#download}} for various virtual machine types, and I decided to use one of these as a basis due to my inexperience with the operating system. Only slow progress was made during the first few days of using this new operating system, as the preinstalled images have a rather basic toolset available and I had to learn how to use a new package manager, and the FreeBSD `ports' system. Having acclimatised to these, I was able to fork the CADETS custom kernel, build and install it onto the running machine.
 	
+	\section{FreeBSD kernel study}
+	
+	The first significant piece of planned project work was to inspect the FreeBSD kernel source code for the network stack, gain some familiarity with it, and note the locations of operations which are of particular interest to the project, either from a packet tagging perspective or from the perspective of packet data being copied to a new memory location.
+	
+	The study commenced at the point where outgoing packets enter the IP layer of the network stack, namely the top of the \verb|ip_output| function. From here, the packet was followed down through the IP layer, exploring all possible control paths
+	\footnote{
+		With one or two notable exceptions, namely that
+		\begin{itemize}
+			\item Berkley Packet Filter (BPF) was considered to be out of scope for the project
+			\item IPSec allows arbitrary code to be executed via its `hooks' system, and so this cannot be inspected
+		\end{itemize}
+	}
+	and possible exit routes into lower layers. Once the packets had left to go to device drivers, the study then turned to the \texttt{netisr} system, which is responsible for receiving packets from device drivers in the FreeBSD kernel and handing them on to the appropriate next layer (usually the IP layer) to be processed. From here, packets were followed back up the network stack in a similar manner, up to the end of \verb|ip_input|, where packets leave the IP layer to go to the next layer up.
+	
+	At this point, it was noticed that the project was getting a little behind schedule and, in a meeting with my supervisor, it was decided that for the moment the project would not look any higher than the IP layer, as there was no significant academic benefit to be gained from continuing up to look at the TCP layer. This could be completed at a later stage in the project if time became available.
+	
+	DID WE GET TIME FOR THIS?
+	
+	
 	\chapter{Implementation}
 	
 	\section{Verbatim text}
