@@ -221,6 +221,12 @@
 	
 	Under Linux, the Resourceful framework is able to collect data from auto-generated tracepoints	within the Linux kernel with relatively low overhead, but it does not currently inspect the network subsystem.
 	
+	\section{Installing the Development System}
+	
+	I had no prior experience with FreeBSD usage or development, so the first challenge was to get a system up and running to be used for both development and testing. I decided to host FreeBSD as a virtual machine on my Windows 10 laptop, as it has reasonable performance for compiling code, whilst being portable and allowing me to work on the project wherever I am. The virtual machine was set up using Oracle\texttrademark\ VM VirtualBox\footnote{\texttt{http://www.virtualbox.org/}}, as I have most experience using this virtualisation application.
+	
+	The FreeBSD website provides preinstalled images\footnote{\texttt{http://www.freebsd.org/where.html\#download}} for various virtual machine types, and I decided to use one of these as a basis due to my inexperience with the operating system. Only slow progress was made during the first few days of using this new operating system, as the preinstalled images have a rather basic toolset available and I had to learn how to use a new package manager, and the FreeBSD `ports' system. Having acclimatised to these, I was able to fork the CADETS custom kernel, build and install it onto the running machine.
+	
 	\chapter{Implementation}
 	
 	\section{Verbatim text}
