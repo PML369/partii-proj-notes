@@ -2,47 +2,47 @@ Following flow of information, starting at ip_output and first working down the 
 
 --- IP layer entry: call to ip_output --
 
-netinet/ip_options.c L518 : ip_insertoptions may allocate a new mbuf in order to write into the packet header
-netinet/ip_output.c  L1397: ip_mloopback takes a copy of a packet mbuf so that it can send it back up the stack
-netinet/ip_output.c  L1399: ip_mloopback calls m_pullup, which may allocate a new mbuf on the front of the chain, resulting in 'copym' being changed.
-net/if_loop.c		 L284 : if_simloop calls m_tag_delete_nonpersistent - TODO: decide if this packet should have the same id tag or a new one
-net/if_loop.c		 L288 : if_simloop calls mac_ifnet_create_mbuf - TODO: Ask Graeme to confirm (if he can) that this isn't doing anything we want to know about
-net/if_loop.c  L303 & 314 : if_simloop calls bpf_mtap. ASSUMING we consider BPF (Berkley packet filter) as a different subsystem, log this
-net/if_loop.c		 L321 : if_simloop calls m_adj. This may free mbufs from the chain
-net/if_loop.c		 L353 : if_simloop may free mbuf chain
-net/if_loop.c		 L358 : if_simloop adds mbuf to the isr queue. This represents its transition into the input system
-netinet/ip_mroute.c L1298 : X_ip_mforward (alias ip_mforward) calls malloc for struct rtdetq (IP packet iformation - data, interface etc)
-netinet/ip_mroute.c L1306 : X_ip_mforward (alias ip_mforward) calls m_copypacket to (deep?) clone entire packet into mb0
-kern/uipc_mbuf.c	 L506 : Aside: what's with this comment? It looks like it does a deep copy to me
-netinet/ip_mroute.c L1342 : X_ip_mforward (alias ip_mforward) calls malloc for struct mfc - multicast forwarding cache structure
-netinet/ip_mroute.c L1347 : X_ip_mforward (alias ip_mforward) calls m_copy to copy header
-netinet/ip_mroute.c L1364 : X_ip_mforward (alias ip_mforward) uses socket_send to send packet to V_ip_mrouter ("multicast routing daemon"?) [and frees an mbuf once it's done]
-netinet/ip_mroute.c L1368 : X_ip_mforward (alias ip_mforward) - lots of frees in this area on error
-netinet/ip_mroute.c L1402 : X_ip_mforward (alias ip_mforward) IP packet info (with mbuf pointer) submitted to queue awaiting mfc in this area
-netinet/ip_mroute.c L1411 : X_ip_mforward (alias ip_mforward) - error related frees
-netinet/ip_output.c  L496 : ip_output frees the packet if it is successfully forwarded to the multicast system
-netinet/ip_output.c  L512 : ip_output frees the packet if it must not be sent
+c netinet/ip_options.c		   L518 : ip_insertoptions may allocate a new mbuf in order to write into the packet header
+  netinet/ip_output.c		   L1397: ip_mloopback takes a copy of a packet mbuf so that it can send it back up the stack
+  netinet/ip_output.c		   L1399: ip_mloopback calls m_pullup, which may allocate a new mbuf on the front of the chain, resulting in 'copym' being changed.
+  net/if_loop.c				   L284 : if_simloop calls m_tag_delete_nonpersistent - TODO: decide if this packet should have the same id tag or a new one
+  net/if_loop.c				   L288 : if_simloop calls mac_ifnet_create_mbuf - TODO: Ask Graeme to confirm (if he can) that this isn't doing anything we want to know about
+  net/if_loop.c				   L303 & 314 : if_simloop calls bpf_mtap. ASSUMING we consider BPF (Berkley packet filter) as a different subsystem, log this
+  net/if_loop.c				   L321 : if_simloop calls m_adj. This may free mbufs from the chain
+  net/if_loop.c				   L353 : if_simloop may free mbuf chain
+  net/if_loop.c				   L358 : if_simloop adds mbuf to the isr queue. This represents its transition into the input system
+  netinet/ip_mroute.c		   L1298 : X_ip_mforward (alias ip_mforward) calls malloc for struct rtdetq (IP packet iformation - data, interface etc)
+  netinet/ip_mroute.c		   L1306 : X_ip_mforward (alias ip_mforward) calls m_copypacket to (deep?) clone entire packet into mb0
+  kern/uipc_mbuf.c			   L506 : Aside: what's with this comment? It looks like it does a deep copy to me
+  netinet/ip_mroute.c		   L1342 : X_ip_mforward (alias ip_mforward) calls malloc for struct mfc - multicast forwarding cache structure
+  netinet/ip_mroute.c		   L1347 : X_ip_mforward (alias ip_mforward) calls m_copy to copy header
+  netinet/ip_mroute.c		   L1364 : X_ip_mforward (alias ip_mforward) uses socket_send to send packet to V_ip_mrouter ("multicast routing daemon"?) [and frees an mbuf once it's done]
+  netinet/ip_mroute.c		   L1368 : X_ip_mforward (alias ip_mforward) - lots of frees in this area on error
+  netinet/ip_mroute.c		   L1402 : X_ip_mforward (alias ip_mforward) IP packet info (with mbuf pointer) submitted to queue awaiting mfc in this area
+  netinet/ip_mroute.c		   L1411 : X_ip_mforward (alias ip_mforward) - error related frees
+  netinet/ip_output.c		   L496 : ip_output frees the packet if it is successfully forwarded to the multicast system
+  netinet/ip_output.c		   L512 : ip_output frees the packet if it must not be sent
 
 -<IPSec>-
-netipsec/ipsec_output.c	   L470 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
-netipsec/ipsec_output.c	   L493 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
-netipsec/ipsec_output.c	   L556 : ipsec4_process_packet allows data to be accessed by the hhooks system (?) via the ctx struct
-netipsec/ipsec_output.c	   L584 : ipsec4_process_packet allows data to be accessed by the hhooks system (?) via the ctx struct
-netipsec/ipsec_output.c	   L614 : ipsec4_process_packet calls the crypto system's transformation output function to output the packet -- dig depper into this?
-netipsec/ipsec_output.c	   L621 : ipsec4_process_packet frees packet on error
+  netipsec/ipsec_output.c	   L470 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
+  netipsec/ipsec_output.c	   L493 : ipsec_encap may allocate another mbuf using m_prepend (via M_PREPEND) - may also free the mbuf if it fails
+  netipsec/ipsec_output.c	   L556 : ipsec4_process_packet allows data to be accessed by the hhooks system (?) via the ctx struct
+  netipsec/ipsec_output.c	   L584 : ipsec4_process_packet allows data to be accessed by the hhooks system (?) via the ctx struct
+  netipsec/ipsec_output.c	   L614 : ipsec4_process_packet calls the crypto system's transformation output function to output the packet -- dig depper into this?
+  netipsec/ipsec_output.c	   L621 : ipsec4_process_packet frees packet on error
 -</IPSec>-
 
-netinet/ip_output.c		   L121 : ip_output_pfil runs PFIL hooks (they might copy things around?)
-netinet/ip_output.c		   L147 : ip_output_pfil adds packet to incoming queue with netisr_queue()
-netinet/ip_output.c		   L181 : ip_output_pfil adds packet to incoming queue with netisr_queue()
-netinet/ip_output.c  	   L661 : ip_output hands mbuf to interface's if_output - packet leaves IP layer
-netinet/ip_output.c  	   L828 : ip_fragment allocates multiple mbufs to fragment packets - need to track UID mapping here
-netinet/ip_output.c  	   L841 : ip_fragment calls m_dup_pkthdr which clones all tags (NB: will need to overwrite), maybe allocating memory for them
-netinet/ip_output.c  	   L868 : ip_fragment uses m_copym to (read only (?)) copy packet data into the fragments
-netinet/ip_output.c  	   L894 : ip_fragment calls m_adj on the original packet - this will end up freeing most of the mbuf chain
-netinet/ip_output.c  	   L697 : ip_output hands mbuf to interface's if_output - packet leaves IP layer
-netinet/ip_output.c  	   L700 : ip_output frees rest of mbuf chain if we encounter an error sending
-netinet/ip_output.c  	   L724 : ip_output frees mbuf chain if we encountered an error before
+  netinet/ip_output.c		   L121 : ip_output_pfil runs PFIL hooks (they might copy things around?)
+  netinet/ip_output.c		   L147 : ip_output_pfil adds packet to incoming queue with netisr_queue()
+  netinet/ip_output.c		   L181 : ip_output_pfil adds packet to incoming queue with netisr_queue()
+  netinet/ip_output.c	  	   L661 : ip_output hands mbuf to interface's if_output - packet leaves IP layer
+  netinet/ip_output.c	  	   L828 : ip_fragment allocates multiple mbufs to fragment packets - need to track UID mapping here
+  netinet/ip_output.c	  	   L841 : ip_fragment calls m_dup_pkthdr which clones all tags (NB: will need to overwrite), maybe allocating memory for them
+  netinet/ip_output.c	  	   L868 : ip_fragment uses m_copym to (read only (?)) copy packet data into the fragments
+  netinet/ip_output.c	  	   L894 : ip_fragment calls m_adj on the original packet - this will end up freeing most of the mbuf chain
+  netinet/ip_output.c	  	   L697 : ip_output hands mbuf to interface's if_output - packet leaves IP layer
+  netinet/ip_output.c	  	   L700 : ip_output frees rest of mbuf chain if we encounter an error sending
+  netinet/ip_output.c	  	   L724 : ip_output frees mbuf chain if we encountered an error before
 
 -- IP layer calls ip_output of specific interface --
 
@@ -50,56 +50,56 @@ netinet/ip_output.c  	   L724 : ip_output frees mbuf chain if we encountered an 
 --- Going up network stack ---
 
 -- Interface calls netisr_dispatch --
-net/netisr.c			   L1100 : netisr_dispatch_src may give up and free packet if protocol is disabled
-net/netisr.c			   L1047 : netisr_queue_src may give up and free packet if protocol is disabled
-net/netisr.c			   L801  : netisr_select_cpuid calls next layer up's np_m2cpuid, which may modify the packet (and therefore allocate?) - probably feasible to inspect this function for each layer 3 protocol
-net/netisr.c			   L825  : netisr_select_cpuid calls next layer up's np_m2flow, which may modify the packet (and therefore allocate?) - doesn't seem to be used by any compiled-in layer 3 protocols
-net/netisr.c			   L995  : netisr_queue_workstream may free packet if no buffer space in the work queue
+  net/netisr.c				   L1100 : netisr_dispatch_src may give up and free packet if protocol is disabled
+  net/netisr.c				   L1047 : netisr_queue_src may give up and free packet if protocol is disabled
+  net/netisr.c				   L801  : netisr_select_cpuid calls next layer up's np_m2cpuid, which may modify the packet (and therefore allocate?) - probably feasible to inspect this function for each layer 3 protocol
+  net/netisr.c				   L825  : netisr_select_cpuid calls next layer up's np_m2flow, which may modify the packet (and therefore allocate?) -  doesn't seem to be used by any compiled-in layer 3 protocols
+  net/netisr.c				   L995  : netisr_queue_workstream may free packet if no buffer space in the work queue
 
 -- netisr completed -- 
 -- IP layer: ip_input --
 
-netinet/ip_input.c		   L472  : ip_input calls m_pullup - potential free on failure
-netinet/ip_icmp.c		   L290  : icmp_error allocates new mbuf for ICMP error reply (caused by input packet)
-netinet/ip_icmp.c		   L711  : icmp_reflect frees mbuf if packet can't be sent (bcast/multicast or similar)
-netinet/ip_icmp.c		   L799  : icmp_reflect frees mbuf if packet can't be sent (no route back)
-netinet/ip_icmp.c		   L806  : icmp_reflect shows ICMP packet to MAC system
-netinet/ip_icmp.c		   L822  : icmp_reflect allocates new mbuf to store options in if necessary
-netinet/ip_icmp.c		   L872  : icmp_reflect deletes nonpersistent mbuf tags ready for transmission
-netinet/ip_icmp.c		   L877  : icmp_reflect frees options mbuf
-netinet/ip_icmp.c		   L355  : icmp_error frees input packet on error
-netinet/ip_fastfwd.c	   L240  : ip_tryforward runs PFIL forward hooks (they might copy things around?)
-netinet/ip_fastfwd.c	   L327  : ip_tryforward runs PFIL output hooks (they might copy things around?)
-netinet/ip_fastfwd.c	   L365  : ip_tryforward deletes an mbuf tag containing routing information
-netinet/ip_fastfwd.c	   L415  : ip_tryforward sends packet to interface for transmission
-netinet/ip_fastfwd.c	   L447  : ip_tryforward sends packet to interface for transmission
-netinet/ip_fastfwd.c	   L456  : ip_tryforward frees remaining packet fragments on error
-netinet/ip_fastfwd.c	   L475  : ip_tryforward frees packet on error
-netinet/ip_input.c		   L584  : ip_input runs PFIL input hooks (they might copy things around?)
-netinet/ip_input.c		   L940  : ip_forward frees packet on error
-netinet/ip_input.c		   L946  : ip_forward frees packet on error
-netinet/ip_input.c		   L1008 : ip_forward allocates a new header mbuf to copy the first part of the packet into
-netinet/ip_input.c		   L1016 : ip_forward frees the copy if part of the duplication fails (no data has been copied yet (confirm), so no need to tag before this point?)
-netinet/ip_input.c		   L1066 : ip_forward sends packet to ip_output to be sent
-netinet/ip_input.c		   L1080 : ip_forward frees the copied mbuf after a successful ip_output()
-netinet/ip_input.c		   L1139 : ip_forward frees the copied mbuf on error
-netinet/ip_input.c		   L1146 : ip_forward gives the copied mbuf to icmp_error to send a notification
-netinet/ip_options.c	   L221  : ip_dooptions frees packet on error
-netinet/ip_input.c		   L719  : ip_input frees the packet on error
-netinet/ip_input.c		   L734  : ip_input frees the packet on error
-netinet/ip_input.c		   L764  : ip_input frees the packet on error
-netinet/ip_reass.c		   L163  : ip_reass frees the packet on error
-netinet/ip_reass.c		   L183  : ip_reass frees the packet on error
-netinet/ip_reass.c		   L630  : ipq_reuse frees fragments of the packet it is kicking out
-netinet/ip_reass.c		   L295  : ASSERT: this call to m_adj will never result in a free, as it frees only if given a negative input
-netinet/ip_reass.c		   L318  : ASSERT: as above, but the logic is more complex. Given ip_len and ip_off should be >= 0, then i > 0 if the for loop body is executed
-netinet/ip_reass.c		   L326  : ip_reass frees fragment containing duplicate data
-netinet/ip_reass.c		   L654  : ipq_free frees fragments of a packet which is being dropped
-netinet/ip_reass.c		   L372  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
-netinet/ip_reass.c		   L380  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
-netinet/ip_reass.c		   L451  : ip_ress frees fragment which is being dropped
-netinet/ip_input.c		   L809  : ip_input passes packet up to protocol layer
-netinet/ip_input.c		   L812  : ip_input frees the packet on error
+  netinet/ip_input.c		   L472  : ip_input calls m_pullup - potential free on failure
+  netinet/ip_icmp.c			   L290  : icmp_error allocates new mbuf for ICMP error reply (caused by input packet)
+  netinet/ip_icmp.c			   L711  : icmp_reflect frees mbuf if packet can't be sent (bcast/multicast or similar)
+  netinet/ip_icmp.c			   L799  : icmp_reflect frees mbuf if packet can't be sent (no route back)
+  netinet/ip_icmp.c			   L806  : icmp_reflect shows ICMP packet to MAC system
+  netinet/ip_icmp.c			   L822  : icmp_reflect allocates new mbuf to store options in if necessary
+  netinet/ip_icmp.c			   L872  : icmp_reflect deletes nonpersistent mbuf tags ready for transmission
+  netinet/ip_icmp.c			   L877  : icmp_reflect frees options mbuf
+  netinet/ip_icmp.c			   L355  : icmp_error frees input packet on error
+  netinet/ip_fastfwd.c		   L240  : ip_tryforward runs PFIL forward hooks (they might copy things around?)
+  netinet/ip_fastfwd.c		   L327  : ip_tryforward runs PFIL output hooks (they might copy things around?)
+  netinet/ip_fastfwd.c		   L365  : ip_tryforward deletes an mbuf tag containing routing information
+  netinet/ip_fastfwd.c		   L415  : ip_tryforward sends packet to interface for transmission
+  netinet/ip_fastfwd.c		   L447  : ip_tryforward sends packet to interface for transmission
+  netinet/ip_fastfwd.c		   L456  : ip_tryforward frees remaining packet fragments on error
+  netinet/ip_fastfwd.c		   L475  : ip_tryforward frees packet on error
+  netinet/ip_input.c		   L584  : ip_input runs PFIL input hooks (they might copy things around?)
+  netinet/ip_input.c		   L940  : ip_forward frees packet on error
+  netinet/ip_input.c		   L946  : ip_forward frees packet on error
+  netinet/ip_input.c		   L1008 : ip_forward allocates a new header mbuf to copy the first part of the packet into
+  netinet/ip_input.c		   L1016 : ip_forward frees the copy if part of the duplication fails (no data has been copied yet (confirm), so no need to tag before this point?)
+  netinet/ip_input.c		   L1066 : ip_forward sends packet to ip_output to be sent
+  netinet/ip_input.c		   L1080 : ip_forward frees the copied mbuf after a successful ip_output()
+  netinet/ip_input.c		   L1139 : ip_forward frees the copied mbuf on error
+  netinet/ip_input.c		   L1146 : ip_forward gives the copied mbuf to icmp_error to send a notification
+  netinet/ip_options.c	   	   L221  : ip_dooptions frees packet on error
+  netinet/ip_input.c		   L719  : ip_input frees the packet on error
+  netinet/ip_input.c		   L734  : ip_input frees the packet on error
+  netinet/ip_input.c		   L764  : ip_input frees the packet on error
+  netinet/ip_reass.c		   L163  : ip_reass frees the packet on error
+  netinet/ip_reass.c		   L183  : ip_reass frees the packet on error
+  netinet/ip_reass.c		   L630  : ipq_reuse frees fragments of the packet it is kicking out
+  netinet/ip_reass.c		   L295  : ASSERT: this call to m_adj will never result in a free, as it frees only if given a negative input
+  netinet/ip_reass.c		   L318  : ASSERT: as above, but the logic is more complex. Given ip_len and ip_off should be >= 0, then i > 0 if the for loop body is executed
+  netinet/ip_reass.c		   L326  : ip_reass frees fragment containing duplicate data
+  netinet/ip_reass.c		   L654  : ipq_free frees fragments of a packet which is being dropped
+  netinet/ip_reass.c		   L372  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
+  netinet/ip_reass.c		   L380  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
+  netinet/ip_reass.c		   L451  : ip_ress frees fragment which is being dropped
+  netinet/ip_input.c		   L809  : ip_input passes packet up to protocol layer
+  netinet/ip_input.c		   L812  : ip_input frees the packet on error
 
 -- IP layer calls specific protocol layer with packet --
 
