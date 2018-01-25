@@ -3,13 +3,13 @@ Following flow of information, starting at ip_output and first working down the 
 --- IP layer entry: call to ip_output --
 
 c netinet/ip_options.c		   L518 : ip_insertoptions may allocate a new mbuf in order to write into the packet header
-  netinet/ip_output.c		   L1397: ip_mloopback takes a copy of a packet mbuf so that it can send it back up the stack
-  netinet/ip_output.c		   L1399: ip_mloopback calls m_pullup, which may allocate a new mbuf on the front of the chain, resulting in 'copym' being changed.
-  net/if_loop.c				   L284 : if_simloop calls m_tag_delete_nonpersistent - TODO: decide if this packet should have the same id tag or a new one
+c netinet/ip_output.c		   L1397: ip_mloopback takes a copy of a packet mbuf so that it can send it back up the stack
+c netinet/ip_output.c		   L1399: ip_mloopback calls m_pullup, which may allocate a new mbuf on the front of the chain, resulting in 'copym' being changed.
+c net/if_loop.c				   L284 : if_simloop calls m_tag_delete_nonpersistent - decided this packet should retain its uuid
   net/if_loop.c				   L288 : if_simloop calls mac_ifnet_create_mbuf - TODO: Ask Graeme to confirm (if he can) that this isn't doing anything we want to know about
-  net/if_loop.c				   L303 & 314 : if_simloop calls bpf_mtap. ASSUMING we consider BPF (Berkley packet filter) as a different subsystem, log this
-  net/if_loop.c				   L321 : if_simloop calls m_adj. This may free mbufs from the chain
-  net/if_loop.c				   L353 : if_simloop may free mbuf chain
+c net/if_loop.c				   L303 & 314 : if_simloop calls bpf_mtap. ASSUMING we consider BPF (Berkley packet filter) as a different subsystem, log this
+c net/if_loop.c				   L321 : if_simloop calls m_adj. This may free mbufs from the chain. ASSERT: hlen is +ve and so no free operations occur
+c net/if_loop.c				   L353 : if_simloop may free mbuf chain
   net/if_loop.c				   L358 : if_simloop adds mbuf to the isr queue. This represents its transition into the input system
   netinet/ip_mroute.c		   L1298 : X_ip_mforward (alias ip_mforward) calls malloc for struct rtdetq (IP packet iformation - data, interface etc)
   netinet/ip_mroute.c		   L1306 : X_ip_mforward (alias ip_mforward) calls m_copypacket to (deep?) clone entire packet into mb0
