@@ -125,7 +125,11 @@
 	
 	\section{Tracing as a Security Tool}
 	
-	Discuss why CADETS is useful, point out that we can't generally assume the security of a system to be perfectly watertight (Meltdown/Spectre), and the need for something to pick up the pieces later.
+	Designing systems which are secure in the face of adversaries is hard. One approach to tackling this is to try to minimise the amount of code (either software or a description of hardware) which is required to maintain security - the Trusted Computing Base. If this is small enough, it can then be implemented in verifiable hardware to provide some form of proof of the system's security.
+	
+	However, this process is difficult and can be very costly, so most systems are unable to make use of such techniques. Instead, they must rely on well-written software (perhaps reviewed by an expert) and on the protections provided by the operating system in conjunction with CPU hardware. This often works reasonably well, however from time to time vulnerabilities are found in even the systems which are believed to be most secure and well-understood - a topical example being in the Spectre CPU vulnerability. In the face of such vulnerabilities in hardware, the software running on top can be exceptionally well engineered and yet can still be exploited since it relies on the provisions made in hardware.
+	
+	Tracing for security is essentially an extension of audit trails which are formed for example by logging authentication events on a system, in order to provide security analysts with information to aid the reconstruction of events after some sort of attack has occurred. The tracing in this project extends the process to allow analysts to see which memory locations were used by the network stack in processing a particular data packet, in the hopes of being able to inform an impact assessment of what data may have been leaked in an attack.
 	
 	\section{Similar Work}
 	
@@ -133,7 +137,7 @@
 	
 	\section{Overall design}
 	
-	The project is to assign uniquely identifying tags to each packet as it flows through the network stack, noting that packet fragmentation/reassembly will make this more difficult. This will then allow DTrace tracepoints to read the tag on each packet when an interesting operation (broadly speaking, a memory allocation) is performed on it. From here, scripts written in DTrace's D language will be able to forward information to the CADETS userspace application for processing.
+	The project is to assign uniquely identifying tags to each packet as it flows through the network stack, noting that packet fragmentation/reassembly will make this more difficult. This will then allow DTrace tracepoints to read the tag on each packet when an interesting operation (broadly speaking, a memory allocation) is performed on it. From here, scripts written in DTrace's D language will be able to forward information to a DTrace consumer to display results and answer user queries.
 
 	
 	
