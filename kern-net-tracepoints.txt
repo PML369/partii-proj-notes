@@ -11,10 +11,10 @@ c net/if_loop.c				   L303 & 314 : if_simloop calls bpf_mtap. ASSUMING we consid
 c net/if_loop.c				   L321 : if_simloop calls m_adj. This may free mbufs from the chain. ASSERT: hlen is +ve and so no free operations occur
 c net/if_loop.c				   L353 : if_simloop may free mbuf chain
   net/if_loop.c				   L358 : if_simloop adds mbuf to the isr queue. This represents its transition into the input system
-  netinet/ip_mroute.c		   L1298 : X_ip_mforward (alias ip_mforward) calls malloc for struct rtdetq (IP packet iformation - data, interface etc)
-  netinet/ip_mroute.c		   L1306 : X_ip_mforward (alias ip_mforward) calls m_copypacket to (deep?) clone entire packet into mb0
+i netinet/ip_mroute.c		   L1298 : X_ip_mforward (alias ip_mforward) calls malloc for struct rtdetq (IP packet iformation - data, interface etc)
+c netinet/ip_mroute.c		   L1306 : X_ip_mforward (alias ip_mforward) calls m_copypacket to (deep?) clone entire packet into mb0
   kern/uipc_mbuf.c			   L506 : Aside: what's with this comment? It looks like it does a deep copy to me
-  netinet/ip_mroute.c		   L1342 : X_ip_mforward (alias ip_mforward) calls malloc for struct mfc - multicast forwarding cache structure
+i netinet/ip_mroute.c		   L1342 : X_ip_mforward (alias ip_mforward) calls malloc for struct mfc - multicast forwarding cache structure
   netinet/ip_mroute.c		   L1347 : X_ip_mforward (alias ip_mforward) calls m_copy to copy header
   netinet/ip_mroute.c		   L1364 : X_ip_mforward (alias ip_mforward) uses socket_send to send packet to V_ip_mrouter ("multicast routing daemon"?) [and frees an mbuf once it's done]
   netinet/ip_mroute.c		   L1368 : X_ip_mforward (alias ip_mforward) - lots of frees in this area on error
@@ -50,6 +50,7 @@ c net/if_loop.c				   L353 : if_simloop may free mbuf chain
 --- Going up network stack ---
 
 -- Interface calls netisr_dispatch --
+c net/netisr.c				   L1210 : netisr_dispatch is handed the packet. We tag it with UUID here, before it goes to netisr_dispatch_src
   net/netisr.c				   L1100 : netisr_dispatch_src may give up and free packet if protocol is disabled
   net/netisr.c				   L1047 : netisr_queue_src may give up and free packet if protocol is disabled
   net/netisr.c				   L801  : netisr_select_cpuid calls next layer up's np_m2cpuid, which may modify the packet (and therefore allocate?) - probably feasible to inspect this function for each layer 3 protocol
@@ -98,7 +99,7 @@ c net/if_loop.c				   L353 : if_simloop may free mbuf chain
   netinet/ip_reass.c		   L372  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
   netinet/ip_reass.c		   L380  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
   netinet/ip_reass.c		   L451  : ip_ress frees fragment which is being dropped
-  netinet/ip_input.c		   L809  : ip_input passes packet up to protocol layer
+c netinet/ip_input.c		   L809  : ip_input passes packet up to protocol layer [ALSO: did top of TCP to get socket stuff]
   netinet/ip_input.c		   L812  : ip_input frees the packet on error
 
 -- IP layer calls specific protocol layer with packet --
