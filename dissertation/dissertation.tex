@@ -124,13 +124,9 @@
 	\subsection{UNIX Sockets API}
 	Under the UNIX `everything is a file' abstraction, layer 4 connections are provided to user applications through sockets, objects which are opened and closed in a similar manner to files and which yield a file descriptor for I/O operations while the connection is open. This abstraction is provided by the kernel (meaning all layers described previously are implemented either in hardware or the kernel) and used by other kernel components as well as all userspace applications which perform network communication.
 	
-	\section{Tracing as a Security Tool}
+	\section{Performance Issues Tracing the Network Stack}
 	
-	Designing systems which are secure in the face of adversaries is hard. One approach to tackling this is to try to minimise the amount of code (either software or a description of hardware) which is required to maintain security - the Trusted Computing Base. If this is small enough, it can then be implemented in verifiable hardware to provide some form of proof of the system's security.
 	
-	However, this process is difficult and can be very costly, so most systems are unable to make use of such techniques. Instead, they must rely on well-written software (perhaps reviewed by an expert) and on the protections provided by the operating system in conjunction with CPU hardware. This often works reasonably well, however from time to time vulnerabilities are found in even the systems which are believed to be most secure and well-understood - a topical example being in the Spectre CPU vulnerability. In the face of such vulnerabilities in hardware, the software running on top can be exceptionally well engineered and yet can still be exploited since it relies on the provisions made in hardware.
-	
-	Tracing for security is essentially an extension of audit trails which are formed for example by logging authentication events on a system, in order to provide security analysts with information to aid the reconstruction of events after some sort of attack has occurred. The tracing in this project extends the process to allow analysts to see which memory locations were used by the network stack in processing a particular data packet, in the hopes of being able to inform an impact assessment of what data may have been leaked in an attack.
 	
 	\section{Similar Work}
 	
