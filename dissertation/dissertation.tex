@@ -148,7 +148,7 @@
 	
 	The CADETS project currently has a user-space application which collects metadata on kernel-level	datastructures via libdtrace, translates the metadata to a JSON format for easy interpretation, and	then sends this away for processing (often over the network). It also has an application with a user interface to display the data it has collected.
 	
-	The FreeBSD kernel provides a means of tagging its main internal structure of interest, namely \verb|struct mbuf| using \verb|struct mbuf_tags|. It is thought that this will be sufficient to tag a packet’s data with an unique identifier in order to track its progress through the kernel’s network stack.
+	The FreeBSD kernel provides a means of tagging its main internal structure of interest, namely \verb|struct mbuf| using \verb|struct mbuf_tags|. It is thought that this will be sufficient to tag a packet’s data with an unique identifier in order to track its progress through the kernel’s network stack. \verb|struct mbuf| is used by the FreeBSD kernel as a generic fixed size memory buffer (hence the name) to store network packet data as it passes from the sockets API all the way to physical network interfaces. The structures have the ability to be chained together in a linked-list like structure to store variable amounts of data, and packets are edited in place where headers must be added and so forth.
 	
 	Under Linux, the Resourceful framework is able to collect data from auto-generated tracepoints	within the Linux kernel with relatively low overhead, but it does not currently inspect the network subsystem.
 	
@@ -172,7 +172,7 @@
 	}
 	and possible exit routes into lower layers. Once the packets had left to go to device drivers, the study then turned to the \texttt{netisr} system, which is responsible for receiving packets from device drivers in the FreeBSD kernel and handing them on to the appropriate next layer (usually the IP layer) to be processed. From here, packets were followed back up the network stack in a similar manner, up to the end of \verb|ip_input|, where packets leave the IP layer to go to the next layer up.
 	
-	At this point, it was noticed that the project was getting a little behind schedule and, in a meeting with my supervisor, it was decided that for the moment the project would not look any higher than the IP layer, as there was no significant academic benefit to be gained from continuing up to look at the TCP layer. This could be completed at a later stage in the project if time became available.
+	At this point, it was noticed that the project was getting a little behind schedule and, in a meeting with my supervisor, it was decided that for the moment the project would not look any higher than the IP layer, as there was no significant academic benefit to be gained from continuing up to look at the TCP layer\footnote{In order to associate packets with sockets, however, a small amount of tracing would have to be added to the TCP layer.}. This could be completed at a later stage in the project if time became available.
 	
 	DID WE GET TIME FOR THIS?
 	
