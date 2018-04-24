@@ -217,6 +217,9 @@
 	
 	As shown in Figure \ref{fig:IPC-uuid-bench}, the addition of UUID a generation algorithm did have a negative impact on performance, with a 20\% reduction in performance for both algorithms. There is little difference between the speed of the two algorithms, which is particularly surprising given how different they are in modus operandi.
 	
+	\subsection{Conclusion}
+	
+	From the results in Figure \ref{fig:IPC-uuid-bench}, there is clearly little to pick between the two UUID generation algorithms under consideration. However, this test was run with constant inputs to the v5 generator, and so the v5 system would still need some way of generating unique inputs. Doing so would likely involve implementing something similar to the v1 algorithm in our case, and so I chose to proceed using version 1 of the algorithm.
 	
 	\chapter{Implementation}
 	
