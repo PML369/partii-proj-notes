@@ -267,6 +267,15 @@
 	
 	\subsection{Development approach}
 	
+	As this data structure is an isolated component with a well-defined interface, it lends itself much better to conventional Software Engineering practices in terms of style and of development methodology. Use of test-driven development has given me a full set of unit tests for the data structure, each of which was defined prior to the implementation of the feature they test so that I can confirm that the interface is implemented correctly.
+	
+	The data structure is written as a template C++ class as discussed earlier, in order to make the data structure as general as possible. The only requirement is that the type being used for elements of the key array must support the < comparison operator in order to build the tree. The data structure has also been implemented as a stack of trie data structures, as this separates out functionality of different logical components from others. While some of the structures do not make much sense in isolation, it may also prove useful to other users of the data structure to be able to cast it to read-only forms. This inheritance structure is shown in Figure \ref{fig:RbtTrie-inheritance}.
+	
+	\begin{figure}
+		\label{fig:RbtTrie-inheritance}
+		\caption{The inheritance structure of my TST implementation, showing the isolation between different functionalities.}
+	\end{figure}
+	
 	\section{Example application}
 	
 	\subsection{DTrace consumer}
