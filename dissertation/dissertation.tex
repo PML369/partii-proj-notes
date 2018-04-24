@@ -233,6 +233,7 @@
 	\subsection{DTrace probes}
 	
 	\section{Core userspace data structure - the `red-black ternary search tree'}
+	\label{sec:TST-impl}
 	
 	\subsection{The data structure}
 	
@@ -301,7 +302,13 @@
 	
 	\subsection{Analysis API}
 	
+	The DTrace probes consumers are given access to a set of core data structures which provide different ways of indexing into a set of classes describing the actions which have been performed on a particular packet, such as the socket it came from, memory addresses which have been used to store its data, and so forth. Many of these indices are provided by the TST implementation discussed in section \ref{sec:TST-impl}, with some other indices being provided by C++ STL containers where they are appropriate.
+	
+	Using this global data store in memory, the application then provides an API which allows the execution of pre-defined (in C++ at compile time) commands in a similar modular fashion to the DTrace probes. Instructions to execute these commands, are passed to the application via a UNIX domain socket (a means of inter-process communication on UNIX-like operating systems) from a PHP application running on a local web server. The web server simply has to serve the front-end pages, and run the PHP script which marshals command arguments and sends them to the UNIX socket.
+	
 	\subsection{Front end}
+	
+	The final front-end application is built on top of Javascript using the popular JQuery\footnote{https://jquery.com/} library for convenient access to page elements, and a special library called Plotly\footnote{https://plot.ly/javascript/} for simple chart plotting on the page. These libraries have been used to make development of this part of the project more efficient, in order to allow more time to be spent on other areas. The front-end is able to display a heatmap of the system's address space to show which addresses are most commonly used by packets, with the ability to filter the address space used to compute this to focus on a specific area.
 	
 	
 	\chapter{Evaluation}
