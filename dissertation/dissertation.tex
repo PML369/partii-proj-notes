@@ -6,6 +6,7 @@
 \usepackage{verbatim}
 \usepackage{pdfpages}  % to embed proposal at the end of the dissertation
 \usepackage{textcomp}
+\usepackage{appendix}
 
 \renewcommand{\baselinestretch}{1.1}    % adjust line spacing to make
 % more readable
@@ -190,6 +191,33 @@
 	
 	To demonstrate the power of the kernel-level tool which has been produced, the project will also provide an example application to collect and analyse the data produced by the kernel. This application shall consist of three main components; data input takes the form of a DTrace consumer which uses libdtrace to enable probes and gather data, data storage uses carefully considered data structures in order to balance the trade-off between memory space consumed and access performance, and analysis is performed by the final component, which displays its results through a Web-based front-end. I chose such a front-end because I did not feel that spending project time getting a graphical user interface up and running on FreeBSD had any academic value, and a Web tool provides accessibility for system administrators who would wish to use this application on headless servers.
 	
+	\section{UUID algorithm selection}
+	
+	As I have discussed earlier, a key part of the kernel development will be to minimise the impact which additional tracing code has on the performance of the network stack, in particular latency and throughput. The algorithm used to generate unique identifiers is expected to be the most costly operation added to the kernel, so this should be chosen with care.
+	
+	\subsection{Available algorithms}
+	
+	The rest of CADETS is already using Universally Unique Identifiers (UUIDs) in other parts of the system, so it would be sensible to use these for packets as well. UUIDs are standardised by RFC4122\cite{RFC4122}, with the two candidates here being version 1 (described in section 4.2) and version 5 (section 4.3), both of which have already been implemented in the CADETS fork of the FreeBSD kernel. The output of the two algorithms is syntactically the same, namely a 128-bit value, but they differ semantically. UUIDv1 uses the current time (considered to be a non-decreasing function) and the computer's MAC address (relatively unique, certainly should be unique within the network) to generate unique identifiers. UUIDv5, on the other hand, takes its uniqueness from a unique name within some arbitrary namespace which is passed to it, and then constrains the output to a fixed length by using a SHA-1 hash.
+	
+	\subsection{Experimental method}
+	
+	To inform the choice of algorithm, I decided to compare the expected performance of the network stack when tagging packets with each form of UUID. I estimated this performance by inserting a single call to the desired generation algorithm at the beginning of the \verb|ip_output| function, as this would cause the function to be called once for each IP layer packet sent out of the system.
+	
+	To evaluate the throughput of the network stack under these different conditions, I used the Inter-Process Communication (IPC) benchmark tool presented as part of the MPhil ACS course L41 (Advanced Operating Systems). This is a simple application which sets up a pair of TCP sockets linked by the loopback interface, and then finds the bandwidth of the link by sending a fixed-size buffer over it.
+	
+	First, a baseline figure was found by running the benchmark on a freshly compiled kernel without any calls inserted, and then the benchmark was run with each of the UUID algorithms in place. Under each set of conditions, the benchmark was repeated 100 times with a sufficient gap in-between to allow the system to return to idle; this allowed a histogram to be plotted of the results for comparison. This repeating of the benchmark was run by the shell script in Appendix \ref{appendix:IPC}.
+	
+	\subsection{Results}
+	
+	\begin{figure}
+		\includegraphics[width=\linewidth]{include/IPC-uuid-bench.png}
+		\caption{Plot of the distribution of throughput values for each UUID generator. The shape of all 3 distributions is broadly similar, as would be expected, with an equal performance drop for both UUIDv1 and UUIDv5.}
+		\label{fig:IPC-uuid-bench}
+	\end{figure}
+	
+	As shown in Figure \ref{fig:IPC-uuid-bench}, the addition of UUID a generation algorithm did have a negative impact on performance, with a 20\% reduction in performance for both algorithms. There is little difference between the speed of the two algorithms, which is particularly surprising given how different they are in modus operandi.
+	
+	
 	\chapter{Implementation}
 	
 	
@@ -208,7 +236,35 @@
 	
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	% the appendices
-	\appendix
+	\begin{appendices}
+		\chapter{IPC Benchmark shell script}
+		\label{appendix:IPC}
+		
+		The following shell script was used to execute the IPC benchmark 100 times to gather data on the throughput effects of the different UUID algorithms.
+		
+		\begin{verbatim}
+		#!/bin/csh
+		
+		# First argument is ipc executable
+		set ipc=$1
+		# Second argument is csv file to output to
+		set csv=$2
+		
+		# Overwrite any existing file with the header
+		echo "Measured transfer rate" > $csv
+		
+		@ n = 0
+		# Repeat the benchmark 100 times
+		while ($n < 100)
+		    # Allow the system to calm down before running benchmark
+		    sleep 2
+		    # 16GiB transfer is found to put the system under significant
+		    # load for about 10 seconds, on my machine
+		    $ipc -i tcp -t 17179869184 2proc | awk '{print $1}' >> $csv
+		    @ n += 1
+		end
+		\end{verbatim}
+	\end{appendices}
 	
 	
 	\includepdf{include/Project-Proposal-Cover-Sheet.pdf}
