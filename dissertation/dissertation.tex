@@ -240,13 +240,13 @@
 	
 	The simple formulation of the trie datastructure operates on arrays of values taken from some fixed-length alphabet. It forms a tree structure, where each node holds an array of the same length as the alphabet, of pointers to other nodes. To search for a key (which is considered as a character array here), the first character of the key is inspected, and the appropriate pointer from the root node's array is followed. If it is NULL, then the key does not exist; otherwise the search is continued with successive characters from the requested key. Each node also has a bit which indicated whether or not it represents the end of a key; if this is set to true when the end of the key array is reached, then the key exists.
 	
-	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary tree, first presented in 1964\cite{Clampett-ternary}. Figure \ref{fig:trie-tst} shows the difference between the standard trie and the ternary search tree.
+	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary search tree (TST), first presented in 1964\cite{Clampett-ternary}. Figure \ref{fig:trie-tst} shows the difference in structure between the standard trie and the TST.
 	
 	However, one must still consider the degenerate case where the binary tree becomes linear down one side, at which point the access time grows too high. This can be avoided by using one of the available techniques to balance binary trees; in this implementation I have used a red-black binary tree, which guarantees that the height of the longest branch of the tree is no more than twice the height of the shortest branch of the tree.
 	
 	\begin{figure}
 		\label{fig:trie-tst}
-		\caption{A traditional array-based trie structure whose alphabet is the integers 0-9 (left), and its corresponding ternary search tree (right).}
+		\caption{A traditional array-based trie structure whose alphabet is the integers 0-9 (left), and its corresponding TST (right).}
 	\end{figure}
 	
 	\subsection{Motivation}
@@ -255,11 +255,11 @@
 	
 	\subsubsection{Complexity}
 	
-	The worst case cost of key search in a ternary search trie takes place in the case where each intermediate tree is as full as it could possibly be - namely it has as many nodes as there are symbols in the alphabet, a. In this case, the search requires a linear pass of key length, L, down these trees, where each tree takes O(log a) (guaranteed by the red-black balancing scheme), giving an overall complexity of O(L log a).
+	The worst case cost of key search in a TST takes place in the case where each intermediate tree is as full as it could possibly be - namely it has as many nodes as there are symbols in the alphabet, a. In this case, the search requires a linear pass of key length, L, down these trees, where each tree takes O(log a) (guaranteed by the red-black balancing scheme), giving an overall complexity of O(L log a).
 	
 	\subsubsection{Binary Search Trees (BSTs)}
 	
-	These are similar in style to ternary search trees, providing some guarantee of access time due to their internal structure. Kept properly balanced, this time is O(log n) comparisons where n is the length of the key being searched. However, since their keys are strings of characters, in terms of characters the access time is O(L log n) as each key comparison takes O(key length) time. This shows that ternary search trees have a lower asymptotic cost whenever n > a, in other words when there are more strings stored than the alphabet size of a single character. BSTs are also notable for their lack of an easy way to perform string prefix matching, a function which is trivial in a ternary search tree.
+	These are similar in style to TSTs, providing some guarantee of access time due to their internal structure. Kept properly balanced, this time is O(log n) comparisons where n is the length of the key being searched. However, since their keys are strings of characters, in terms of characters the access time is O(L log n) as each key comparison takes O(key length) time. This shows that TSTs have a lower asymptotic cost whenever n > a, in other words when there are more strings stored than the alphabet size of a single character. BSTs are also notable for their lack of an easy way to perform string prefix matching, a function which is trivial in a ternary search tree.
 	
 	\subsubsection{Hash maps}
 	
