@@ -251,6 +251,20 @@
 	
 	\subsection{Motivation}
 	
+	In this project, the trie structure is being used to form a map of (generally string) keys to values, usually pointers to a datastructure holding information about a particular packet. There are various other ways to implement a key-value store of this type, including binary search trees (of the entire key at once) and hash maps. Both of these structures are available in the C++ STL (Standard Template Library), as std::map and std::unordered\_map respectively, and so would be easy to use directly in the userspace application.
+	
+	\subsubsection{Complexity}
+	
+	The worst case cost of key search in a ternary search trie takes place in the case where each intermediate tree is as full as it could possibly be - namely it has as many nodes as there are symbols in the alphabet, a. In this case, the search requires a linear pass of key length, L, down these trees, where each tree takes O(log a) (guaranteed by the red-black balancing scheme), giving an overall complexity of O(L log a).
+	
+	\subsubsection{Binary Search Trees (BSTs)}
+	
+	These are similar in style to ternary search trees, providing some guarantee of access time due to their internal structure. Kept properly balanced, this time is O(log n) comparisons where n is the length of the key being searched. However, since their keys are strings of characters, in terms of characters the access time is O(L log n) as each key comparison takes O(key length) time. This shows that ternary search trees have a lower asymptotic cost whenever n > a, in other words when there are more strings stored than the alphabet size of a single character. BSTs are also notable for their lack of an easy way to perform string prefix matching, a function which is trivial in a ternary search tree.
+	
+	\subsubsection{Hash maps}
+	
+	On average, hash maps can be shown to perform very well indeed, having an amortised constant average lookup time. However, this lookup time is highly dependent on how good their hash function is for the particular keys inserted - the degenerate case for the datastructure being that all keys hash to the same value and so the structure is reduced to a linked list with linear access time. In a hash map it is even harder to perform prefix matching than in a BST.
+	
 	\subsection{Development approach}
 	
 	\section{Example application}
