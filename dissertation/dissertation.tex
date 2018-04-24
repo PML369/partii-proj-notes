@@ -221,7 +221,32 @@
 	
 	From the results in Figure \ref{fig:IPC-uuid-bench}, there is clearly little to pick between the two UUID generation algorithms under consideration. However, this test was run with constant inputs to the v5 generator, and so the v5 system would still need some way of generating unique inputs. Doing so would likely involve implementing something similar to the v1 algorithm in our case, and so I chose to proceed using version 1 of the algorithm.
 	
+	
 	\chapter{Implementation}
+	
+	\section{Kernel alterations}
+	
+	\subsection{Tagging packets with UUIDs}
+	
+	\subsection{Adding a kernel configuration option}
+	
+	\subsection{DTrace probes}
+	
+	\section{Core userspace datastructure - the `red-black trie'}
+	
+	\subsection{The datastructure}
+	
+	\subsection{Motivation}
+	
+	\subsection{Development approach}
+	
+	\section{Example application}
+	
+	\subsection{DTrace consumer}
+	
+	\subsection{Analysis API}
+	
+	\subsection{Front end}
 	
 	
 	\chapter{Evaluation}
