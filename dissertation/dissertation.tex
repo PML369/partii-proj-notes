@@ -180,6 +180,15 @@
 	
 	Although I had experience in C/C++ prior to starting this project, I had no experience with the FreeBSD operating system from either a user's perspective or a developer's. I had occasionally compiled the Linux kernel, but had only done any work on it far enough to fix compile errors. Given this situation, reading through the kernel source code was a non-trivial exercise, as I was not familiar with any of the kernel data structures in use and so had to research these when I encountered them. The pain of doing this is greatly reduced by the existence of Robert Watson's FreeBSD Kernel Cross-Reference\footnote{http://fxr.watson.org/}, which allows one to search for identifiers throughout the kernel source tree. It does not compare to some modern IDEs for development, but as these were not readily available on my development machine the online system was sufficient.
 	
+	\section{Requirements Analysis}
+	
+	\subsection{Kernel portion}
+	
+	The project must provide means of uniquely identifying packets in the network stack of the operating system and associating these identities with timing information and memory addresses used to store data. This is to be moved from kernel space to user space using DTrace, as this will allow the data collection to be integrated with the wider CADETS system if required, as well as other applications in the future.
+	
+	\subsection{Userspace application}
+	
+	To demonstrate the power of the kernel-level tool which has been produced, the project will also provide an example application to collect and analyse the data produced by the kernel. This application shall consist of three main components; data input takes the form of a DTrace consumer which uses libdtrace to enable probes and gather data, data storage uses carefully considered data structures in order to balance the trade-off between memory space consumed and access performance, and analysis is performed by the final component, which displays its results through a Web-based front-end. I chose such a front-end because I did not feel that spending project time getting a graphical user interface up and running on FreeBSD had any academic value, and a Web tool provides accessibility for system administrators who would wish to use this application on headless servers.
 	
 	\chapter{Implementation}
 	
