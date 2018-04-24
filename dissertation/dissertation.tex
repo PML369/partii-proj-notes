@@ -232,9 +232,22 @@
 	
 	\subsection{DTrace probes}
 	
-	\section{Core userspace datastructure - the `red-black trie'}
+	\section{Core userspace datastructure - the `red-black ternary search tree'}
 	
 	\subsection{The datastructure}
+	
+	The basis of the datastructure is that of a trie, traditionally a datastructure used to store strings in a natural language dictionary and similar applications. While strings are commonly used as keys, and for simplicity I will do so here, there is no particular reason why an array of any other type could not be used in place of character arrays to represent strings. This is reflected in my implementation of the datastructure as a template class with the array type yet to be determined.
+	
+	The simple formulation of the trie datastructure operates on arrays of values taken from some fixed-length alphabet. It forms a tree structure, where each node holds an array of the same length as the alphabet, of pointers to other nodes. To search for a key (which is considered as a character array here), the first character of the key is inspected, and the appropriate pointer from the root node's array is followed. If it is NULL, then the key does not exist; otherwise the search is continued with successive characters from the requested key. Each node also has a bit which indicated whether or not it represents the end of a key; if this is set to true when the end of the key array is reached, then the key exists.
+	
+	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary tree, first presented in 1964\cite{Clampett-ternary}. Figure \ref{fig:trie-tst} shows the difference between the standard trie and the ternary search tree.
+	
+	However, one must still consider the degenerate case where the binary tree becomes linear down one side, at which point the access time grows too high. This can be avoided by using one of the available techniques to balance binary trees; in this implementation I have used a red-black binary tree, which guarantees that the height of the longest branch of the tree is no more than twice the height of the shortest branch of the tree.
+	
+	\begin{figure}
+		\label{fig:trie-tst}
+		\caption{A traditional array-based trie structure whose alphabet is the integers 0-9 (left), and its corresponding ternary search tree (right).}
+	\end{figure}
 	
 	\subsection{Motivation}
 	
