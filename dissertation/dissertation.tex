@@ -174,7 +174,11 @@
 	
 	At this point, it was noticed that the project was getting a little behind schedule and, in a meeting with my supervisor, it was decided that for the moment the project would not look any higher than the IP layer, as there was no significant academic benefit to be gained from continuing up to look at the TCP layer\footnote{In order to associate packets with sockets, however, a small amount of tracing would have to be added to the TCP layer.}. This could be completed at a later stage in the project if time became available.
 	
-	DID WE GET TIME FOR THIS?
+	\section{Challenges of kernel development}
+	
+	It is generally accepted that kernel development is more difficult than application level development, and that productivity is lower as a result. This is in part due to the language choices involved - the FreeBSD kernel is written in C and there is no way to change that whereas in application code it is possible to use the most appropriate language for the job at hand; at least as high level as C++, anyway. Kernel APIs tend to have more opaque documentation as the focus is on documenting the exact specifications of a call, rather than getting people to use it quickly. Internet searches are often less productive as fewer people have ever encountered your exact situation before, and of course extra care must be taken to understand every line of code written, as any memory access error will result in the kernel crashing - and it is much harder to debug the kernel than it is to debug a userspace application.
+	
+	My experience prior to this and what I had to learn.
 	
 	
 	\chapter{Implementation}
