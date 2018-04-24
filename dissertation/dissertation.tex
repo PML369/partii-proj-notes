@@ -278,7 +278,26 @@
 	
 	\section{Example application}
 	
+	The example application is split into three main components, the first two of which are written in C++ as they need to interface closely with libdtrace (with a little bit of PHP for the API), while the front end is written for the web, with most functionality coming from Javascript.
+	
 	\subsection{DTrace consumer}
+	
+	DTrace calls any application which can accept events from its probes a consumer. A consumer has to interact with libdtrace via a C API, the core part of which is a loop of continuous polling looking for new events which can be consumed. This API is not intended for public use as it is subject to change without notice and is only meant to be used by the \texttt{dtrace} command and other similar utilities. However, since this project has already modified the kernel I feel that it is appropriate to directly link against this library, as this becomes effectively another utility provided by DTrace.
+	
+	The core of the consumer must establish a connection to DTrace, install a program (which specifies which probes to activate and what to execute when they fire), and then listen for events being emitted by the probes and capture their output. To improve the readability and extensibility of this component, I have abstracted information on each of the probes in which this consumer is interested into its own class, from which the main component assembles the program based on all the probes it can find, and then passes any events to a handler defined by the same class. These classes all have a common base class, \texttt{ProbeType}, which defines a simple but strict interface for the probe specifications.
+	
+	\begin{figure}
+		\begin{verbatim}
+		class ProbeType
+		{
+		public:
+		    virtual std::string getDScript() = 0;
+		    virtual std::string getBufferPrefix() = 0;
+		    virtual void        processBuffer(std::stringstream&, NetUuidData *) = 0;
+		};
+		\end{verbatim}
+		\caption{The public part of the declaration of the probe base class, showing the simple interface between probes and the application.}
+	\end{figure}
 	
 	\subsection{Analysis API}
 	
