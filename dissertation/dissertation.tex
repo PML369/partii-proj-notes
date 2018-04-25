@@ -44,12 +44,12 @@
 			Project Title:      & \bf Adding network subsystem provenance \\
 								& \bf collection to CADETS \\
 			Examination:        & \bf Computer Science Tripos -- Part II, 2018  \\
-			Word Count:         & \bf tbc\footnotemark[1]  \\
+			Word Count:         & \bf 5900\footnotemark[1]  \\
 			Project Originator: & Dr R.~Sohan                    \\
 			Supervisor:         & Dr G.~Jenkinson                    \\ 
 		\end{tabular}
 	}
-	\footnotetext[1]{This word count was computed at [date]	by the provided online tool at \texttt{URL}
+	\footnotetext[1]{This word count was computed on 25/04/2018	by \texttt{texcount} [the provided online tool at \texttt{URL}]
 	}
 	\stepcounter{footnote}
 	
@@ -61,11 +61,11 @@
 	
 	\section*{Work Completed}
 	
-	\textit{What we actually did.}
+	I have implemented a scheme for assigning Universally Unique Identifiers to each packet passing through the network stack of the FreeBSD kernel, along with DTrace probes to extract information pertaining to the now-identifiable packets. I extract this information in an example user-space application which stores the data it receives in memory and is able to provide aggregated data, graphs etc. to users via a Web front end.
 	
 	\section*{Special Difficulties}
 	
-	None. [We hope!!]
+	None.
 	
 	\newpage
 	\section*{Declaration Of Originality}
@@ -135,7 +135,7 @@
 	
 	\section{Similar Work}
 	
-	Just need to mention Resourceful? - I haven't used it so far, is it even relevant?
+	Possibly mention Resourceful here.
 	
 	\section{Overall design}
 	
@@ -190,7 +190,7 @@
 	
 	\subsection{Userspace application}
 	
-	To demonstrate the power of the kernel-level tool which has been produced, the project will also provide an example application to collect and analyse the data produced by the kernel. This application shall consist of three main components; data input takes the form of a DTrace consumer which uses libdtrace to enable probes and gather data, data storage uses carefully considered data structures in order to balance the trade-off between memory space consumed and access performance, and analysis is performed by the final component, which displays its results through a Web-based front-end. I chose such a front-end because I did not feel that spending project time getting a graphical user interface up and running on FreeBSD had any academic value, and a Web tool provides accessibility for system administrators who would wish to use this application on headless servers.
+	To demonstrate the power of the kernel-level tool which has been produced, the project will also provide an example application to collect and analyse the data produced by the kernel, which is extension 1 in the project proposal. This application shall consist of three main components; data input takes the form of a DTrace consumer which uses libdtrace to enable probes and gather data, data storage uses carefully considered data structures in order to balance the trade-off between memory space consumed and access performance, and analysis is performed by the final component, which displays its results through a Web-based front-end. I chose such a front-end because I did not feel that spending project time getting a graphical user interface up and running on FreeBSD had any academic value, and a Web tool provides accessibility for system administrators who would wish to use this application on headless servers.
 	
 	\section{UUID algorithm selection}
 	
@@ -262,7 +262,7 @@
 	
 	Due to limitations within DTrace's D language, the probes currently involve more work in the kernel than would be ideal. The process of locating the required tag on an mbuf and extracting the UUID from this must be performed before the probe is fired, as DTrace is unable to do this. In other areas, however, DTrace has some nice features which are advantageous here, including the concept of type translations between native kernel types and special types in the D language. These are used to provide a stable type in DTrace for a particular probe, even when the underlying kernel type may be altered.
 	
-	\section{Core userspace data structure - the `red-black ternary search tree'}
+	\section{The red-black ternary search tree}
 	\label{sec:TST-impl}
 	
 	\subsection{The data structure}
@@ -271,7 +271,7 @@
 	
 	The simple formulation of the trie data structure operates on arrays of values taken from some fixed-length alphabet. It forms a tree structure, where each node holds an array of the same length as the alphabet, of pointers to other nodes. To search for a key (which is considered as a character array here), the first character of the key is inspected, and the appropriate pointer from the root node's array is followed. If it is NULL, then the key does not exist; otherwise the search is continued with successive characters from the requested key. Each node also has a bit which indicated whether or not it represents the end of a key; if this is set to true when the end of the key array is reached, then the key exists.
 	
-	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary search tree (TST), first presented in 1964\cite{Clampett-ternary}. Figure \ref{fig:trie-tst} shows the difference in structure between the standard trie and the TST.
+	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary search tree (TST), presented in 1964\cite{Clampett-ternary}. Figure \ref{fig:trie-tst} shows the difference in structure between the standard trie and the TST.
 	
 	However, one must still consider the degenerate case where the binary tree becomes linear down one side, at which point the access time grows too high. This can be avoided by using one of the available techniques to balance binary trees; in this implementation I have used a red-black binary tree, which guarantees that the height of the longest branch of the tree is no more than twice the height of the shortest branch of the tree.
 	
@@ -282,7 +282,7 @@
 	
 	\subsection{Motivation}
 	
-	In this project, the trie structure is being used to form a map of (generally string) keys to values, usually pointers to a data structure holding information about a particular packet. There are various other ways to implement a key-value store of this type, including binary search trees (of the entire key at once) and hash maps. Both of these structures are available in the C++ STL (Standard Template Library), as std::map and std::unordered\_map respectively, and so would be easy to use directly in the userspace application.
+	In this project, the trie structure is being used to form a map of (generally string) keys to values, usually pointers to a data structure holding information about a particular packet. There are various other ways to implement a key-value store of this type, including binary search trees (of the entire key at once) and hash maps. Both of these structures are available in the C++ STL (Standard Template Library), as \verb|std::map| and \verb|std::unordered_map| respectively, and so would be easy to use directly in the userspace application.
 	
 	\subsubsection{Complexity}
 	
