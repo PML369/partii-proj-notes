@@ -343,10 +343,25 @@
 	
 	\chapter{Evaluation}
 	
+	\section{Effect on network throughput}
+	
+	\subsection{Experimental method}
+	
+	Same as in the Preparation section (although we might run more iterations?) - should Preparation reference this section and we describe it here?
+	
+	\subsection{Results}
+	
+	\subsection{Analysis \& Conclusions}
+	
+	\subsection{Moving work into DTrace}
+	
+	Discuss how having a copy of \verb|m_tag_locate| in DTrace's D language would allow the `off' cost of probes to be reduced to near zero. Talk about how this is not available as it requires a loop over a linked list, propose a general form of bounded iteration to keep DTrace people happy.
+	
+	\section{Functionality of example application}
 	
 	\chapter{Conclusion}
 	
-	
+	Perhaps note here the absence of automated tools for kernel source searching, and explain why I chose not to use them this time and under what circumstances I would.
 	
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	% the bibliography
