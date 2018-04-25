@@ -204,13 +204,11 @@
 	
 	The rest of CADETS is already using Universally Unique Identifiers (UUIDs) in other parts of the system, so it would be sensible to use these for packets as well. UUIDs are standardised by RFC4122\cite{RFC4122}, with the two candidates here being version 1 (described in section 4.2) and version 5 (section 4.3), both of which have already been implemented in the CADETS fork of the FreeBSD kernel. The output of the two algorithms is syntactically the same, namely a 128-bit value, but they differ semantically. UUIDv1 uses the current time (considered to be a non-decreasing function) and the computer's MAC address (relatively unique, certainly should be unique within the network) to generate unique identifiers. UUIDv5, on the other hand, takes its uniqueness from a unique name within some arbitrary namespace which is passed to it, and then constrains the output to a fixed length by using a SHA-1 hash.
 	
-	\subsection{Experimental method}
+	\subsection{Benchmarking}
 	
 	To inform the choice of algorithm, I decided to compare the expected performance of the network stack when tagging packets with each form of UUID. I estimated this performance by inserting a single call to the desired generation algorithm at the beginning of the \verb|ip_output| function, as this would cause the function to be called once for each IP layer packet sent out of the system.
 	
-	To evaluate the throughput of the network stack under these different conditions, I used the Inter-Process Communication (IPC) benchmark tool presented as part of the MPhil ACS course L41 (Advanced Operating Systems). This is a simple application which sets up a pair of TCP sockets linked by the loopback interface, and then finds the bandwidth of the link by sending a fixed-size buffer over it.
-	
-	First, a baseline figure was found by running the benchmark on a freshly compiled kernel without any calls inserted, and then the benchmark was run with each of the UUID algorithms in place. Under each set of conditions, the benchmark was repeated 100 times with a sufficient gap in-between to allow the system to return to idle; this allowed a histogram to be plotted of the results for comparison. This repeating of the benchmark was run by the shell script in Appendix \ref{appendix:IPC}.
+	Details of the benchmark and experimental method used are provided in Section \ref{sec:IPC-expt}; it suffices to say at this point that the benchmark provides an estimate of the maximum possible throughput through the (virtualised) loopback network adapter.
 	
 	\subsection{Results}
 	
@@ -447,10 +445,17 @@
 	\chapter{Evaluation}
 	
 	\section{Effect on network throughput}
+	\label{sec:IPC-expt}
+	
+	\subsection{Benchmark}
+	
+	To evaluate the throughput of the network stack under these different conditions, I used the Inter-Process Communication (IPC) benchmark tool presented as part of the MPhil ACS course L41 (Advanced Operating Systems). This is a simple application which sets up a pair of TCP sockets linked by the loopback interface, and then finds the bandwidth of the link by sending a fixed-size buffer over it and timing the operation.
 	
 	\subsection{Experimental method}
 	
-	Same as in the Preparation section (although we might run more iterations?) - should Preparation reference this section and we describe it here?
+	First, a baseline figure was found by running the benchmark on a freshly compiled kernel without any calls inserted, and then the benchmark was run under each set of test conditions. The benchmark was repeated 100 times in each scenario, as this was found to provide enough data for a reasonable distribution plot to be created, whilst keeping the execution time of the experiment acceptable. This repeating of the benchmark was run by the shell script in Appendix \ref{appendix:IPC}.
+	
+	To ensure comparability of results, I made sure that the main kernel code base did not change between the different runs, and that the kernel in use was freshly compiled so that I could be sure of its code content. No other high-loading userspace applications were running on the FreeBSD system throughout the entirety of the test, and my test script left a sufficiently large gap in-between benchmark runs to allow the system to return to idle. Despite all of these controls, one must also remember that this FreeBSD system is running in a virtualised environment with Windows 10 as the host operating system. While I tried not to cause undue load on the Windows system whilst the benchmarks were running, it is always possible that some automated background tasks will have affected the results. 
 	
 	\subsection{Results}
 	
