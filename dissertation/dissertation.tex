@@ -7,9 +7,13 @@
 \usepackage{pdfpages}  % to embed proposal at the end of the dissertation
 \usepackage{textcomp}
 \usepackage{appendix}
+\usepackage{subcaption}
 
-\renewcommand{\baselinestretch}{1.1}    % adjust line spacing to make
-% more readable
+\usepackage{tikz} % Diagrams
+\usetikzlibrary{positioning}
+\definecolor {processblue}{cmyk}{0.96,0,0,0}
+
+\renewcommand{\baselinestretch}{1.1}    % adjust line spacing
 
 \begin{document}
 	
@@ -216,11 +220,11 @@
 		\label{fig:IPC-uuid-bench}
 	\end{figure}
 	
-	As shown in Figure \ref{fig:IPC-uuid-bench}, the addition of UUID a generation algorithm did have a negative impact on performance, with a 20\% reduction in performance for both algorithms. There is little difference between the speed of the two algorithms, which is particularly surprising given how different they are in modus operandi.
+	As shown in \figurename{\ref{fig:IPC-uuid-bench}}, the addition of UUID a generation algorithm did have a negative impact on performance, with a 20\% reduction in performance for both algorithms. There is little difference between the speed of the two algorithms, which is particularly surprising given how different they are in modus operandi.
 	
 	\subsection{Conclusion}
 	
-	From the results in Figure \ref{fig:IPC-uuid-bench}, there is clearly little to pick between the two UUID generation algorithms under consideration. However, this test was run with constant inputs to the v5 generator, and so the v5 system would still need some way of generating unique inputs. Doing so would likely involve implementing something similar to the v1 algorithm in our case, and so I chose to proceed using version 1 of the algorithm.
+	From the results in \figurename{\ref{fig:IPC-uuid-bench}}, there is clearly little to pick between the two UUID generation algorithms under consideration. However, this test was run with constant inputs to the v5 generator, and so the v5 system would still need some way of generating unique inputs. Doing so would likely involve implementing something similar to the v1 algorithm in our case, and so I chose to proceed using version 1 of the algorithm.
 	
 	
 	\chapter{Implementation}
@@ -235,10 +239,9 @@
 	
 	Reflecting the code's place in the operating system kernel, I have used the defensive programming technique on all the functions defined by the external interface (and most internal ones) in order to ensure that sensible behaviour occurs when functions receive a NULL, or otherwise invalid, argument. As this code is only for tracing such scenarios do not represent errors for the system as a whole, so are mostly ignored silently. I used defensive programming to provide graceful degradation in the event of a failure in my code, so that for example the kernel does not crash due to a memory error - in all cases, it is considered safer to not trace a particular packet than crash the kernel.
 	
-	The \verb|struct mtag_uuid|, as shown in Figure \ref{fig:mtag_uuid}, also contains pointers to other structures which together allow a tree of such tags to be formed, representing the fragmentation and reassembly of packets which may occur in the network stack. This adds complication when it comes to freeing the structure, as it would not be acceptable for kernel code to cause memory leaks and so the whole tree must be freed carefully. To do this, the free function uses a linked list as a queue in order to perform a breadth-first search of all tags in the tree. The FreeBSD kernel makes available a set of macros for the management of linked lists, as of course the C standard does not contain such advanced data structures.
+	The \verb|struct mtag_uuid|, as shown in \figurename{ \ref{fig:mtag_uuid}}, also contains pointers to other structures which together allow a tree of such tags to be formed, representing the fragmentation and reassembly of packets which may occur in the network stack. This adds complication when it comes to freeing the structure, as it would not be acceptable for kernel code to cause memory leaks and so the whole tree must be freed carefully. To do this, the free function uses a linked list as a queue in order to perform a breadth-first search of all tags in the tree. The FreeBSD kernel makes available a set of macros for the management of linked lists, as of course the C standard does not contain such advanced data structures.
 	
 	\begin{figure}
-		\label{fig:mtag_uuid}
 		\begin{verbatim}
 		struct mtag_uuid {
 		    struct m_tag       tag;
@@ -250,6 +253,7 @@
 		};
 		\end{verbatim}
 		\caption{The declaration of the packet tag structure. The required mtag structure comes first in memory, followed by the UUID and tree pointers.}
+		\label{fig:mtag_uuid}
 	\end{figure}
 	
 	\subsection{Adding a kernel configuration option}
@@ -271,13 +275,112 @@
 	
 	The simple formulation of the trie data structure operates on arrays of values taken from some fixed-length alphabet. It forms a tree structure, where each node holds an array of the same length as the alphabet, of pointers to other nodes. To search for a key (which is considered as a character array here), the first character of the key is inspected, and the appropriate pointer from the root node's array is followed. If it is NULL, then the key does not exist; otherwise the search is continued with successive characters from the requested key. Each node also has a bit which indicated whether or not it represents the end of a key; if this is set to true when the end of the key array is reached, then the key exists.
 	
-	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary search tree (TST), presented in 1964\cite{Clampett-ternary}. Figure \ref{fig:trie-tst} shows the difference in structure between the standard trie and the TST.
+	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary search tree (TST), presented in 1964\cite{Clampett-ternary}. \figurename{ \ref{fig:trie-tst}} shows the difference in structure between the standard trie and the TST.
 	
 	However, one must still consider the degenerate case where the binary tree becomes linear down one side, at which point the access time grows too high. This can be avoided by using one of the available techniques to balance binary trees; in this implementation I have used a red-black binary tree, which guarantees that the height of the longest branch of the tree is no more than twice the height of the shortest branch of the tree.
 	
 	\begin{figure}
+		\begin{subfigure}{\textwidth}
+			\centering
+			\begin {tikzpicture}[-latex, auto, semithick,
+					trienode/.style = {
+						rectangle, top color = white, bottom color = processblue!20, draw, processblue, text=blue, minimum height = 13mm, minimum width = 37mm
+					},
+					trieptr/.style = {
+						rectangle, draw=black!50, minimum width = 3mm, minimum height = 5mm, anchor=south west
+					}
+				]
+			
+				\newcommand{\drawtrienode}[3]{
+					\node[trienode] (#1) 	at #2{};
+					\node[anchor=north west] at (#1.north west) {Leaf: #3};
+					\node[trieptr]  (#1-0)	[above = of #1.south west, yshift = -8mm, xshift=4mm]{};
+					
+					\foreach \i in {1,...,9}
+					{
+						\pgfmathtruncatemacro{\j}{\i - 1};
+						\node[trieptr] (#1-\i) at (#1-\j.south east) {};
+					}
+				}
+				
+				\drawtrienode{root}{(0, 0)}{false}
+				
+				\drawtrienode{2}{( -3, -3)}{true}
+				\drawtrienode{5}{(  0, -5)}{false}
+				\drawtrienode{9}{(  4, -3)}{false}
+				
+				\drawtrienode{26}{( -5, -6)}{true}
+				\drawtrienode{27}{( -3, -8)}{true}
+				\drawtrienode{53}{( -1,-10)}{true}
+				\drawtrienode{90}{(2.5, -7)}{true}
+				\drawtrienode{94}{(  7, -7)}{true}
+				
+				\drawtrienode{902}{(  4,-10)}{true}
+				
+				
+				\path (root-2) edge node {2} (2);
+				\path (root-5) edge node {5} (5);
+				\path (root-9) edge node {9} (9);
+				
+				\path (2-6) edge node {6} (26);
+				\path (2-7) edge node {7} (27);
+				\path (5-3) edge node {3} (53);
+				\path (9-0) edge node {0} (90);
+				\path (9-4) edge node {4} (94);
+				
+				\path (90-2) edge node {2} (902);
+			
+			\end{tikzpicture}
+			\caption{Array-based trie representation}
+		\end{subfigure}
+		\par\bigskip\bigskip
+		\begin{subfigure}{\linewidth}
+			\centering
+			\begin{tikzpicture}[-latex, auto, semithick,
+					tstnode/.style = {
+						rectangle, top color = white, bottom color = processblue!20, draw, processblue, text=blue, minimum height = 19mm, minimum width = 22mm
+					},
+					trieptr/.style = {
+						rectangle, draw=black!50, minimum width = 3mm, minimum height = 5mm, anchor=south west
+					}
+				]
+				
+				\newcommand{\drawtstnode}[4]{
+					\node[tstnode] (#1) 	at #2{};
+					\node[anchor=north west] (#1-lf) at (#1.north west) {Leaf: #4};
+					\node[anchor=north west] at (#1-lf.south west) {Key: #3};
+					\node[trieptr]  (#1-left)	[above = of #1.south west, yshift = -8mm, xshift=4mm]{};
+					\node[trieptr] (#1-mid) at (#1-left.south east) [xshift=4mm] {};
+					\node[trieptr] (#1-right) at (#1-mid.south east) [xshift=4mm] {};
+				}
+			
+				\drawtstnode{5}{(  0,  0)}{5}{false}
+				\drawtstnode{2}{( -3, -2)}{2}{true}
+				\drawtstnode{9}{(  3, -2)}{9}{false}
+				
+				\drawtstnode{27}{( -3, -5)}{7}{true}
+				\drawtstnode{26}{( -5, -8)}{6}{true}
+				\drawtstnode{53}{(  0, -4)}{3}{true}
+				\drawtstnode{90}{(  3, -5)}{0}{true}
+				\drawtstnode{94}{(  6, -7)}{4}{true}
+				
+				\drawtstnode{902}{( 3, -8)}{2}{true}
+				
+				\path (5-left) edge node {} (2);
+				\path (5-mid) edge node {} (53);
+				\path (5-right) edge node {} (9);
+				\path (2-mid) edge node {} (27);
+				\path (9-mid) edge node {} (90);
+				
+				\path (27-left) edge node {} (26);
+				\path (90-mid) edge node {} (902);
+				\path (90-right) edge node {} (94);
+				
+			\end{tikzpicture}
+			\caption{Ternary Search Tree representation}
+		\end{subfigure}
+		\caption{A traditional array-based trie structure whose alphabet is the integers 0-9 (a), and a corresponding TST (b). These structures both contain the strings 2, 26, 27, 53, 90, 902, 94. Characters on pointer edges are shown for clarity only.}
 		\label{fig:trie-tst}
-		\caption{A traditional array-based trie structure whose alphabet is the integers 0-9 (left), and its corresponding TST (right).}
 	\end{figure}
 	
 	\subsection{Motivation}
@@ -300,11 +403,11 @@
 	
 	As this data structure is an isolated component with a well-defined interface, it lends itself much better to conventional Software Engineering practices in terms of style and of development methodology. Use of test-driven development has given me a full set of unit tests for the data structure, each of which was defined prior to the implementation of the feature they test so that I can confirm that the interface is implemented correctly.
 	
-	The data structure is written as a template C++ class as discussed earlier, in order to make the data structure as general as possible. The only requirement is that the type being used for elements of the key array must support the < comparison operator in order to build the tree. The data structure has also been implemented as a stack of trie data structures, as this separates out functionality of different logical components from others. While some of the structures do not make much sense in isolation, it may also prove useful to other users of the data structure to be able to cast it to read-only forms. This inheritance structure is shown in Figure \ref{fig:RbtTrie-inheritance}.
+	The data structure is written as a template C++ class as discussed earlier, in order to make the data structure as general as possible. The only requirement is that the type being used for elements of the key array must support the < comparison operator in order to build the tree. The data structure has also been implemented as a stack of trie data structures, as this separates out functionality of different logical components from others. While some of the structures do not make much sense in isolation, it may also prove useful to other users of the data structure to be able to cast it to read-only forms. This inheritance structure is shown in \figurename{ \ref{fig:RbtTrie-inheritance}}.
 	
 	\begin{figure}
-		\label{fig:RbtTrie-inheritance}
 		\caption{The inheritance structure of my TST implementation, showing the isolation between different functionalities.}
+		\label{fig:RbtTrie-inheritance}
 	\end{figure}
 	
 	\section{Example application}
