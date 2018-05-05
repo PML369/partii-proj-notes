@@ -1,0 +1,1 @@
+texcount -quiet -merge -dir -sub=chapter -utf8 -sum dissertation.tex
