@@ -61,47 +61,48 @@ c net/netisr.c				   L995  : netisr_queue_workstream may free packet if no buffe
 -- netisr completed -- 
 -- IP layer: ip_input --
 
-  netinet/ip_input.c		   L472  : ip_input calls m_pullup - potential free on failure
-  netinet/ip_icmp.c			   L290  : icmp_error allocates new mbuf for ICMP error reply (caused by input packet)
-  netinet/ip_icmp.c			   L711  : icmp_reflect frees mbuf if packet can't be sent (bcast/multicast or similar)
-  netinet/ip_icmp.c			   L799  : icmp_reflect frees mbuf if packet can't be sent (no route back)
-  netinet/ip_icmp.c			   L806  : icmp_reflect shows ICMP packet to MAC system
-  netinet/ip_icmp.c			   L822  : icmp_reflect allocates new mbuf to store options in if necessary
-  netinet/ip_icmp.c			   L872  : icmp_reflect deletes nonpersistent mbuf tags ready for transmission
-  netinet/ip_icmp.c			   L877  : icmp_reflect frees options mbuf
-  netinet/ip_icmp.c			   L355  : icmp_error frees input packet on error
-  netinet/ip_fastfwd.c		   L240  : ip_tryforward runs PFIL forward hooks (they might copy things around?)
-  netinet/ip_fastfwd.c		   L327  : ip_tryforward runs PFIL output hooks (they might copy things around?)
-  netinet/ip_fastfwd.c		   L365  : ip_tryforward deletes an mbuf tag containing routing information
-  netinet/ip_fastfwd.c		   L415  : ip_tryforward sends packet to interface for transmission
-  netinet/ip_fastfwd.c		   L447  : ip_tryforward sends packet to interface for transmission
-  netinet/ip_fastfwd.c		   L456  : ip_tryforward frees remaining packet fragments on error
-  netinet/ip_fastfwd.c		   L475  : ip_tryforward frees packet on error
-  netinet/ip_input.c		   L584  : ip_input runs PFIL input hooks (they might copy things around?)
-  netinet/ip_input.c		   L940  : ip_forward frees packet on error
-  netinet/ip_input.c		   L946  : ip_forward frees packet on error
-  netinet/ip_input.c		   L1008 : ip_forward allocates a new header mbuf to copy the first part of the packet into
-  netinet/ip_input.c		   L1016 : ip_forward frees the copy if part of the duplication fails (no data has been copied yet (confirm), so no need to tag before this point?)
-  netinet/ip_input.c		   L1066 : ip_forward sends packet to ip_output to be sent
-  netinet/ip_input.c		   L1080 : ip_forward frees the copied mbuf after a successful ip_output()
-  netinet/ip_input.c		   L1139 : ip_forward frees the copied mbuf on error
-  netinet/ip_input.c		   L1146 : ip_forward gives the copied mbuf to icmp_error to send a notification
-  netinet/ip_options.c	   	   L221  : ip_dooptions frees packet on error
-  netinet/ip_input.c		   L719  : ip_input frees the packet on error
-  netinet/ip_input.c		   L734  : ip_input frees the packet on error
-  netinet/ip_input.c		   L764  : ip_input frees the packet on error
-  netinet/ip_reass.c		   L163  : ip_reass frees the packet on error
-  netinet/ip_reass.c		   L183  : ip_reass frees the packet on error
-  netinet/ip_reass.c		   L630  : ipq_reuse frees fragments of the packet it is kicking out
-  netinet/ip_reass.c		   L295  : ASSERT: this call to m_adj will never result in a free, as it frees only if given a negative input
-  netinet/ip_reass.c		   L318  : ASSERT: as above, but the logic is more complex. Given ip_len and ip_off should be >= 0, then i > 0 if the for loop body is executed
-  netinet/ip_reass.c		   L326  : ip_reass frees fragment containing duplicate data
-  netinet/ip_reass.c		   L654  : ipq_free frees fragments of a packet which is being dropped
-  netinet/ip_reass.c		   L372  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
-  netinet/ip_reass.c		   L380  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
-  netinet/ip_reass.c		   L451  : ip_ress frees fragment which is being dropped
+c netinet/ip_input.c		   L472  : ip_input calls m_pullup - potential free on failure
+c netinet/ip_fastfwd.c		   L186  : ip_tryforward calls icmp_error which frees the packet
+i netinet/ip_icmp.c			   L290  : icmp_error allocates new mbuf for ICMP error reply (caused by input packet)
+i netinet/ip_icmp.c			   L711  : icmp_reflect frees mbuf if packet can't be sent (bcast/multicast or similar)
+i netinet/ip_icmp.c			   L799  : icmp_reflect frees mbuf if packet can't be sent (no route back)
+i netinet/ip_icmp.c			   L806  : icmp_reflect shows ICMP packet to MAC system
+i netinet/ip_icmp.c			   L822  : icmp_reflect allocates new mbuf to store options in if necessary
+i netinet/ip_icmp.c			   L872  : icmp_reflect deletes nonpersistent mbuf tags ready for transmission
+i netinet/ip_icmp.c			   L877  : icmp_reflect frees options mbuf
+i netinet/ip_icmp.c			   L355  : icmp_error frees input packet on error
+c netinet/ip_fastfwd.c		   L240  : ip_tryforward runs PFIL forward hooks (they might copy things around?) -- implemented within pfil_run_hooks
+c netinet/ip_fastfwd.c		   L327  : ip_tryforward runs PFIL output hooks (they might copy things around?) -- implemented within pfil_run_hooks
+i netinet/ip_fastfwd.c		   L365  : ip_tryforward deletes an mbuf tag containing routing information
+c netinet/ip_fastfwd.c		   L415  : ip_tryforward sends packet to interface for transmission
+c netinet/ip_fastfwd.c		   L447  : ip_tryforward sends packet to interface for transmission
+i netinet/ip_fastfwd.c		   L456  : ip_tryforward frees remaining packet fragments on error
+c netinet/ip_fastfwd.c		   L475  : ip_tryforward frees packet on error
+c netinet/ip_input.c		   L584  : ip_input runs PFIL input hooks (they might copy things around?) -- implemented within pfil_run_hooks
+c netinet/ip_input.c		   L940  : ip_forward frees packet on error
+c netinet/ip_input.c		   L946  : ip_forward frees packet on error
+c netinet/ip_input.c		   L1008 : ip_forward allocates a new header mbuf to copy the first part of the packet into
+i netinet/ip_input.c		   L1016 : ip_forward frees the copy if part of the duplication fails (no data has been copied yet (confirm), so no need to tag before this point?)
+i netinet/ip_input.c		   L1066 : ip_forward sends packet to ip_output to be sent
+i netinet/ip_input.c		   L1080 : ip_forward frees the copied mbuf after a successful ip_output()
+i netinet/ip_input.c		   L1139 : ip_forward frees the copied mbuf on error
+i netinet/ip_input.c		   L1146 : ip_forward gives the copied mbuf to icmp_error to send a notification
+c netinet/ip_options.c	   	   L221  : ip_dooptions frees packet on error
+c netinet/ip_input.c		   L719  : ip_input frees the packet on error
+c netinet/ip_input.c		   L734  : ip_input frees the packet on error
+c netinet/ip_input.c		   L764  : ip_input frees the packet on error
+c netinet/ip_reass.c		   L163  : ip_reass frees the packet on error
+c netinet/ip_reass.c		   L183  : ip_reass frees the packet on error
+c netinet/ip_reass.c		   L630  : ipq_reuse frees fragments of the packet it is kicking out
+- netinet/ip_reass.c		   L295  : ASSERT: this call to m_adj will never result in a free, as it frees only if given a negative input
+- netinet/ip_reass.c		   L318  : ASSERT: as above, but the logic is more complex. Given ip_len and ip_off should be >= 0, then i > 0 if the for loop body is executed
+i netinet/ip_reass.c		   L326  : ip_reass frees fragment containing duplicate data
+c netinet/ip_reass.c		   L654  : ipq_free frees fragments of a packet which is being dropped
+i netinet/ip_reass.c		   L372  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
+i netinet/ip_reass.c		   L380  : ip_reass calls m_cat, which may free extra mbufs in its second argument's chain
+c netinet/ip_reass.c		   L451  : ip_ress frees fragment which is being dropped
 c netinet/ip_input.c		   L809  : ip_input passes packet up to protocol layer [ALSO: did top of TCP to get socket stuff]
-  netinet/ip_input.c		   L812  : ip_input frees the packet on error
+c netinet/ip_input.c		   L812  : ip_input frees the packet on error
 
 -- IP layer calls specific protocol layer with packet --
 
