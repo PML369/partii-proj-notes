@@ -485,6 +485,7 @@
 	
 	To ensure comparability of results, I made sure that the main kernel code base did not change between the different runs, and that the kernel in use was freshly compiled so that I could be sure of its code content. No other high-loading userspace applications were running on the FreeBSD system throughout the entirety of the test, and my test script left a sufficiently large gap in-between benchmark runs to allow the system to return to idle. Despite all of these controls, one must also remember that this FreeBSD system is running in a virtualised environment with Windows 10 as the host operating system. While I tried not to cause undue load on the Windows system whilst the benchmarks were running by disabling background antivirus checks and background Windows apps, it is always possible that some other automated background tasks will have affected the results.
 	
+	For the final evaluation, I took the advice of the L41 lab instructions and manually forced the kernel to use at most a 32Mb buffer for socket connections, and part of the experiment was to compare the loopback interface's default MTU of 16kb with a more realistic 1500 bytes.
 	
 	\subsection{Results}
 	
