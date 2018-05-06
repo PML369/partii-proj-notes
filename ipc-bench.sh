@@ -9,8 +9,8 @@ set csv=$2
 echo "Measured transfer rate" > $csv
 
 @ n = 0
-# Repeat the benchmark 500 times
-while ($n < 500)
+# Repeat the benchmark 250 times
+while ($n < 250)
 	# Allow the system to calm down before running benchmark
 	sleep 2
 	# 16GiB transfer is found to put the system under significant
