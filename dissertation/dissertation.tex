@@ -54,7 +54,7 @@
 			Supervisor:         & Dr G.~Jenkinson                    \\ 
 		\end{tabular}
 	}
-	\footnotetext[1]{This word count was computed on 25/04/2018	by \texttt{texcount} [the provided online tool at \texttt{URL}]
+	\footnotetext[1]{This word count was computed on 25/04/2018	by \texttt{texcount -merge -dir -sub=chapter -utf8 -sum dissertation.tex}
 	}
 	\stepcounter{footnote}
 	
@@ -103,9 +103,9 @@
 	
 	In this project I am evaluating the application of fine-grained tracing within the network stack of the FreeBSD kernel by implementing additional statically defined DTrace probes which are able to provide a platform for both security and performance analysis.
 	
-	The security aspect of the tool is most useful in combating Advanced Persistent Threats (APTs)\cite{Tankard-APT}, where the attacker slowly infiltrates the target system, hiding out of sight until they can exploit knowledge gained to access the enterprise’s internal network. This may allow the attacker to extract sensitive data from databases in such a way that the access is very hard to distinguish from normal access. Eventually, it is likely that the malware will make a mistake and trigger an indicator of compromise to be observed by administrators, but by then it is difficult to tell what data the malware has seen.
+	The security aspect of the tool is most useful in combating Advanced Persistent Threats (APTs)\cite{Tankard-APT}, where the attacker slowly infiltrates the target system, hiding out of sight until they can exploit knowledge gained to access the enterprise’s internal network. This may allow the attacker to extract sensitive data, from databases for example, in such a way that the access is very hard to distinguish from normal access. Eventually, it is likely that the malware will make a mistake and trigger an indicator of compromise to be observed by administrators, but by then it is difficult to tell what data the malware has seen.
 	
-	The Computer Laboratory has a project which is trying to combat this by building CADETS\cite{CADETS-main} on top of the FreeBSD operating system, which tracks the provenance of data by collecting metadata from computers all over the network about what processes act on what data and when. This metadata is then collected in a distributed database, where it can be analysed to trace data flows throughout the computer system.
+	As pat of the DARPA Transparent Computing Program\cite{DARPA-CT}, the Computer Laboratory has a project which is trying to combat this by building CADETS\cite{CADETS-main} on top of the FreeBSD operating system, which tracks the provenance of data by collecting metadata from computers all over the network about what processes act on what data and when. This metadata is then collected in a distributed database, where it can be analysed to trace data flows throughout the computer system.
 	
 	My project adds support for collecting metadata on network packets as they flow through the kernel	network stack. The data collected will allow users of CADETS to seek out suspicious activity which may be being used to attack a system, and will be able to provide a list of locations in kernel memory where packet data were stored. The latter allows a system administrator to infer what data may have been leaked if they are able to determine that some malicious code had access to a particular set of kernel memory addresses.
 	
@@ -122,7 +122,7 @@
 	This layer defines how data frames are transferred between two physically connected nodes, including any shared medium access arbitration and means of addressing such physically connected nodes.
 	
 	\subsection{Layer 3: Network}
-	Typically implemented by the Internet Protocol (IP), addressing and routing between physical networks is defined here, typically including concepts such as broadcast (all nodes receive message) and multicast (a specific group of nodes receive message). This layer often has to handle problems arising from the underlying layers having a different Maximum Transmission Unit (MTU), such that a large packet may not be able to make the next hp connection as a single packet if it is too large for the next physical network. In IPv4 this is handled using fragmentation, where the large packet is split up into several smaller ones which are then sent separately, and the receiver must keep a copy of fragments it receives until it can re-assemble the whole packet and deliver it to the layer above. IPv6 addresses the problem by dropping the packet and sending a notification back to the sender.
+	Typically implemented by the Internet Protocol (IP), addressing and routing between physical networks is defined here, typically including concepts such as broadcast (all nodes receive message) and multicast (a specific group of nodes receive message). This layer often has to handle problems arising from the underlying layers having a different Maximum Transmission Unit (MTU), such that a large packet may not be able to make the next hop in the path as a single packet if it is too large for the next physical network. In IPv4 this is handled using fragmentation, where the large packet is split up into several smaller ones which are then sent separately, and the receiver must keep a copy of fragments it receives until it can re-assemble the whole packet and deliver it to the layer above. IPv6 addresses the problem by dropping the packet and sending a notification back to the sender. Fragmentation is not, however, a common process, with some empirical studies showing that the rate of fragmentation in the open internet is as low as 0.25\%.
 	
 	\subsection{Layer 4: Transport}
 	This layer is responsible for the reliable delivery of data (if required) across a layer 3 link, and creates the notion of a connection which is opened, used to transmit/receive data, and then closed. This is the most common place for application designers to make a choice about layer implementation - TCP or UDP. TCP (the Transmission Control Protocol) provides reliable, in-order delivery of data to higher layers, along with trying to provide fairness between connections through adaptive transmission rate control to avoid congestion. Its main alternative, UDP (the User Datagram Protocol), does not provide reliable delivery but in removing this feature is often able to operate with lower latency than TCP.
@@ -130,8 +130,7 @@
 	\subsection{UNIX Sockets API}
 	Under the UNIX `everything is a file' abstraction, layer 4 connections are provided to user applications through sockets, objects which are opened and closed in a similar manner to files and which yield a file descriptor for I/O operations while the connection is open. This abstraction is provided by the kernel (meaning all layers described previously are implemented either in hardware or the kernel) and used by other kernel components as well as all userspace applications which perform network communication.
 	
-	\section{Performance Issues Tracing the Network Stack}
-	
+	\section{Probe Effect}	
 	When tracing any application, it is important to consider the performance impact of the tracing system on the target application. Timings can be critical to correct operation of the application, but even when this is not the case it would still be all too easy to impact system performance to the point where it no longer meets specifications. Causing the system to degrade to this point undermines the purpose of the tracing in the first place - namely to run all the time the application is running in the real world to gather data which is later used for security and performance analysis.
 	
 	Of all applications, it is of the utmost importance not to slow down the operation of the Operating System kernel beyond what is necessary. Every application running on the computer must interact with the kernel to perform I/O to files, networks and so forth, and so slowing down the kernel will impact on all applications which use it. This is especially true of regions which operate under mutual exclusion and so the usual modern-day approach of shifting to multicore may not be able to help.
@@ -140,7 +139,7 @@
 	
 	\section{Similar Work}
 	
-	Possibly mention Resourceful here.
+	Possibly mention Resourceful here. Graeme mentioned other academic tracing projects such as X-Trace, Pinpoint. Reference these as "X describes Y, and my project is similar/different from this because..."
 	
 	\section{Overall design}
 	
@@ -183,9 +182,9 @@
 	
 	\section{Challenges of kernel development}
 	
-	It is generally accepted that kernel development is more difficult than application level development, and that productivity is lower as a result. This is in part due to the language choices involved - the FreeBSD kernel is written in C and there is no way to change that whereas in application code it is possible to use the most appropriate language for the job at hand; at least as high level as C++, anyway. Kernel APIs tend to have more opaque documentation as the focus is on documenting the exact specifications of a call, rather than getting people to use it quickly. Internet searches are often less productive as fewer people have ever encountered your exact situation before, and of course extra care must be taken to understand every line of code written, as any memory access error will result in the kernel crashing - and it is much harder to debug the kernel than it is to debug a userspace application.
+	It is generally accepted that kernel development is more difficult than application level development, and that productivity is lower as a result. This is in part due to the language choices involved - the FreeBSD kernel is written in C and there is no way to change that whereas in application code it is possible to use the most appropriate language for the job at hand; at least as high level as C++, anyway. Kernel APIs tend to have more opaque documentation as the focus is on documenting the exact specifications of a call, rather than getting people to use it quickly. Internet searches are often less productive as fewer people have ever encountered your exact situation before, and of course extra care must be taken to understand every line of code written, as any memory access error will result in the kernel panicking - and it is much harder to debug the kernel than it is to debug a userspace application.
 	
-	Although I had experience in C/C++ prior to starting this project, I had no experience with the FreeBSD operating system from either a user's perspective or a developer's. I had occasionally compiled the Linux kernel, but had only done any work on it far enough to fix compile errors. Given this situation, reading through the kernel source code was a non-trivial exercise, as I was not familiar with any of the kernel data structures in use and so had to research these when I encountered them. The pain of doing this is greatly reduced by the existence of Robert Watson's FreeBSD Kernel Cross-Reference\footnote{http://fxr.watson.org/}, which allows one to search for identifiers throughout the kernel source tree. It does not compare to some modern IDEs for development, but as these were not readily available on my development machine the online system was sufficient.
+	Although I had experience in C/C++ prior to starting this project, I had no experience with the FreeBSD operating system from either a user's perspective or a developer's. I had occasionally compiled the Linux kernel, but had only done any work on it far enough to fix compile errors. Given this situation, reading through the kernel source code was a non-trivial exercise, as I was not familiar with any of the kernel data structures in use and so had to research these when I encountered them. The pain of doing this is greatly reduced by the existence of M.K. McKusick et al's book, `The Design and Implementation of the FreeBSD Operating System'\cite{McKusick:2014:DIF:2659919}, and Robert Watson's FreeBSD Kernel Cross-Reference\footnote{http://fxr.watson.org/}, which allows one to search for identifiers throughout the kernel source tree. It does not compare to some modern IDEs for development, but as these were not readily available on my development machine the online system was sufficient.
 	
 	\section{Requirements Analysis}
 	
@@ -199,7 +198,9 @@
 	
 	\section{UUID algorithm selection}
 	
-	As I have discussed earlier, a key part of the kernel development will be to minimise the impact which additional tracing code has on the performance of the network stack, in particular latency and throughput. The algorithm used to generate unique identifiers is expected to be the most costly operation added to the kernel, so this should be chosen with care.
+	As I have discussed earlier, a key part of the kernel development will be to minimise the impact which additional tracing code has on the performance of the network stack, in particular latency and throughput. The algorithm used to generate unique identifiers is expected to be the most costly operation added to the kernel, so this should be chosen with care. In principle it is possible to reduce the cost of UUID generation to this project by adding an additional piece of hardware to the computer, perhaps made available by the kernel through the /dev interface, to continuously generate a pool of UUIDs. However, for this project I have decided not to use such a system so that my code can be used on systems without such external hardware.
+	
+	Although it is expected that the generation of UUIDs will be the most costly operation involved in packet tagging, it is also possible that storing UUIDs for each packet will have a significant impact on performance on the network stack. It has been shown that \verb|mbuf|s which are poorly aligned for the local cache architecture can have such an impact, and a similar issue could be caused if the UUID storage shares a cache line with part of an \verb|mbuf|, and so increases cache pressure on the system.
 	
 	\subsection{Available algorithms}
 	
@@ -268,113 +269,103 @@
 	\section{The red-black ternary search tree}
 	\label{sec:TST-impl}
 	
-	\subsection{The data structure}
-	
-	The basis of the data structure is that of a trie, traditionally used to store strings in a natural language dictionary and similar applications. While strings are commonly used as keys, and for simplicity I will do so here, there is no particular reason why an array of any other type could not be used in place of character arrays to represent strings. This is reflected in my implementation of the data structure as a template class with the array type yet to be determined.
-	
-	The simple formulation of the trie data structure operates on arrays of values taken from some fixed-length alphabet. It forms a tree structure, where each node holds an array of the same length as the alphabet, of pointers to other nodes. To search for a key (which is considered as a character array here), the first character of the key is inspected, and the appropriate pointer from the root node's array is followed. If it is NULL, then the key does not exist; otherwise the search is continued with successive characters from the requested key. Each node also has a bit which indicated whether or not it represents the end of a key; if this is set to true when the end of the key array is reached, then the key exists.
-	
-	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary search tree (TST), presented in 1964\cite{Clampett-ternary}. \figurename{ \ref{fig:trie-tst}} shows the difference in structure between the standard trie and the TST.
-	
-	However, one must still consider the degenerate case where the binary tree becomes linear down one side, at which point the access time grows too high. This can be avoided by using one of the available techniques to balance binary trees; in this implementation I have used a red-black binary tree, which guarantees that the height of the longest branch of the tree is no more than twice the height of the shortest branch of the tree.
-	
 	\begin{figure}
 		\begin{subfigure}{\textwidth}
 			\centering
 			\begin {tikzpicture}[-latex, auto, semithick,
-					trienode/.style = {
-						rectangle, top color = white, bottom color = processblue!20, draw, processblue, text=blue, minimum height = 13mm, minimum width = 37mm
-					},
-					trieptr/.style = {
-						rectangle, draw=black!50, minimum width = 3mm, minimum height = 5mm, anchor=south west
-					}
-				]
+			trienode/.style = {
+				rectangle, top color = white, bottom color = processblue!20, draw, processblue, text=blue, minimum height = 13mm, minimum width = 37mm
+			},
+			trieptr/.style = {
+				rectangle, draw=black!50, minimum width = 3mm, minimum height = 5mm, anchor=south west
+			}
+			]
 			
-				\newcommand{\drawtrienode}[3]{
-					\node[trienode] (#1) 	at #2{};
-					\node[anchor=north west] at (#1.north west) {Leaf: #3};
-					\node[trieptr]  (#1-0)	[above = of #1.south west, yshift = -8mm, xshift=4mm]{};
-					
-					\foreach \i in {1,...,9}
-					{
-						\pgfmathtruncatemacro{\j}{\i - 1};
-						\node[trieptr] (#1-\i) at (#1-\j.south east) {};
-					}
+			\newcommand{\drawtrienode}[3]{
+				\node[trienode] (#1) 	at #2{};
+				\node[anchor=north west] at (#1.north west) {Leaf: #3};
+				\node[trieptr]  (#1-0)	[above = of #1.south west, yshift = -8mm, xshift=4mm]{};
+				
+				\foreach \i in {1,...,9}
+				{
+					\pgfmathtruncatemacro{\j}{\i - 1};
+					\node[trieptr] (#1-\i) at (#1-\j.south east) {};
 				}
-				
-				\drawtrienode{root}{(0, 0)}{false}
-				
-				\drawtrienode{2}{( -3, -3)}{true}
-				\drawtrienode{5}{(  0, -5)}{false}
-				\drawtrienode{9}{(  4, -3)}{false}
-				
-				\drawtrienode{26}{( -5, -6)}{true}
-				\drawtrienode{27}{( -3, -8)}{true}
-				\drawtrienode{53}{( -1,-10)}{true}
-				\drawtrienode{90}{(2.5, -7)}{true}
-				\drawtrienode{94}{(  7, -7)}{true}
-				
-				\drawtrienode{902}{(  4,-10)}{true}
-				
-				
-				\path (root-2) edge node {2} (2);
-				\path (root-5) edge node {5} (5);
-				\path (root-9) edge node {9} (9);
-				
-				\path (2-6) edge node {6} (26);
-				\path (2-7) edge node {7} (27);
-				\path (5-3) edge node {3} (53);
-				\path (9-0) edge node {0} (90);
-				\path (9-4) edge node {4} (94);
-				
-				\path (90-2) edge node {2} (902);
+			}
 			
-			\end{tikzpicture}
-			\caption{Array-based trie representation}
+			\drawtrienode{root}{(0, 0)}{false}
+			
+			\drawtrienode{2}{( -3, -3)}{true}
+			\drawtrienode{5}{(  0, -5)}{false}
+			\drawtrienode{9}{(  4, -3)}{false}
+			
+			\drawtrienode{26}{( -5, -6)}{true}
+			\drawtrienode{27}{( -3, -8)}{true}
+			\drawtrienode{53}{( -1,-10)}{true}
+			\drawtrienode{90}{(2.5, -7)}{true}
+			\drawtrienode{94}{(  7, -7)}{true}
+			
+			\drawtrienode{902}{(  4,-10)}{true}
+			
+			
+			\path (root-2) edge node {2} (2);
+			\path (root-5) edge node {5} (5);
+			\path (root-9) edge node {9} (9);
+			
+			\path (2-6) edge node {6} (26);
+			\path (2-7) edge node {7} (27);
+			\path (5-3) edge node {3} (53);
+			\path (9-0) edge node {0} (90);
+			\path (9-4) edge node {4} (94);
+			
+			\path (90-2) edge node {2} (902);
+			
+		\end{tikzpicture}
+		\caption{Array-based trie representation}
 		\end{subfigure}
 		\par\bigskip\bigskip
 		\begin{subfigure}{\linewidth}
 			\centering
 			\begin{tikzpicture}[-latex, auto, semithick,
-					tstnode/.style = {
-						rectangle, top color = white, bottom color = processblue!20, draw, processblue, text=blue, minimum height = 19mm, minimum width = 22mm
-					},
-					trieptr/.style = {
-						rectangle, draw=black!50, minimum width = 3mm, minimum height = 5mm, anchor=south west
-					}
-				]
-				
-				\newcommand{\drawtstnode}[4]{
-					\node[tstnode] (#1) 	at #2{};
-					\node[anchor=north west] (#1-lf) at (#1.north west) {Leaf: #4};
-					\node[anchor=north west] at (#1-lf.south west) {Key: #3};
-					\node[trieptr]  (#1-left)	[above = of #1.south west, yshift = -8mm, xshift=4mm]{};
-					\node[trieptr] (#1-mid) at (#1-left.south east) [xshift=4mm] {};
-					\node[trieptr] (#1-right) at (#1-mid.south east) [xshift=4mm] {};
-				}
+			tstnode/.style = {
+				rectangle, top color = white, bottom color = processblue!20, draw, processblue, text=blue, minimum height = 19mm, minimum width = 22mm
+			},
+			trieptr/.style = {
+				rectangle, draw=black!50, minimum width = 3mm, minimum height = 5mm, anchor=south west
+			}
+			]
 			
-				\drawtstnode{5}{(  0,  0)}{5}{false}
-				\drawtstnode{2}{( -3, -2)}{2}{true}
-				\drawtstnode{9}{(  3, -2)}{9}{false}
-				
-				\drawtstnode{27}{( -3, -5)}{7}{true}
-				\drawtstnode{26}{( -5, -8)}{6}{true}
-				\drawtstnode{53}{(  0, -4)}{3}{true}
-				\drawtstnode{90}{(  3, -5)}{0}{true}
-				\drawtstnode{94}{(  6, -7)}{4}{true}
-				
-				\drawtstnode{902}{( 3, -8)}{2}{true}
-				
-				\path (5-left) edge node {} (2);
-				\path (5-mid) edge node {} (53);
-				\path (5-right) edge node {} (9);
-				\path (2-mid) edge node {} (27);
-				\path (9-mid) edge node {} (90);
-				
-				\path (27-left) edge node {} (26);
-				\path (90-mid) edge node {} (902);
-				\path (90-right) edge node {} (94);
-				
+			\newcommand{\drawtstnode}[4]{
+				\node[tstnode] (#1) 	at #2{};
+				\node[anchor=north west] (#1-lf) at (#1.north west) {Leaf: #4};
+				\node[anchor=north west] at (#1-lf.south west) {Key: #3};
+				\node[trieptr]  (#1-left)	[above = of #1.south west, yshift = -8mm, xshift=4mm]{};
+				\node[trieptr] (#1-mid) at (#1-left.south east) [xshift=4mm] {};
+				\node[trieptr] (#1-right) at (#1-mid.south east) [xshift=4mm] {};
+			}
+			
+			\drawtstnode{5}{(  0,  0)}{5}{false}
+			\drawtstnode{2}{( -3, -2)}{2}{true}
+			\drawtstnode{9}{(  3, -2)}{9}{false}
+			
+			\drawtstnode{27}{( -3, -5)}{7}{true}
+			\drawtstnode{26}{( -5, -8)}{6}{true}
+			\drawtstnode{53}{(  0, -4)}{3}{true}
+			\drawtstnode{90}{(  3, -5)}{0}{true}
+			\drawtstnode{94}{(  6, -7)}{4}{true}
+			
+			\drawtstnode{902}{( 3, -8)}{2}{true}
+			
+			\path (5-left) edge node {} (2);
+			\path (5-mid) edge node {} (53);
+			\path (5-right) edge node {} (9);
+			\path (2-mid) edge node {} (27);
+			\path (9-mid) edge node {} (90);
+			
+			\path (27-left) edge node {} (26);
+			\path (90-mid) edge node {} (902);
+			\path (90-right) edge node {} (94);
+			
 			\end{tikzpicture}
 			\caption{Ternary Search Tree representation}
 		\end{subfigure}
@@ -384,19 +375,29 @@
 	
 	\subsection{Motivation}
 	
-	In this project, the trie structure is being used to form a map of (generally string) keys to values, usually pointers to a data structure holding information about a particular packet. There are various other ways to implement a key-value store of this type, including binary search trees (of the entire key at once) and hash maps. Both of these structures are available in the C++ STL (Standard Template Library), as \verb|std::map| and \verb|std::unordered_map| respectively, and so would be easy to use directly in the userspace application.
+	In this project, I needed a data structure to form a map of (generally string) keys to values, usually pointers to a data structure holding information about a particular packet. It is also important to the end application that the data structure be able to search within a key prefix in order to provide, for example, information on a particular chunk of memory address space, characterised by the high bits of its address. There are various ways to implement a key-value store of this type, including binary search trees, hash maps, and ternary search trees. Both of the former are available in the C++ STL (Standard Template Library), as \verb|std::map| and \verb|std::unordered_map| respectively, and so would be easy to use directly in the userspace application. I chose to implement the ternary search tree, however, for the reasons I describe below.
 	
 	\subsubsection{Complexity}
 	
-	The worst case cost of key search in a TST takes place in the case where each intermediate tree is as full as it could possibly be - namely it has as many nodes as there are symbols in the alphabet, a. In this case, the search requires a linear pass of key length, L, down these trees, where each tree takes O(log a) (guaranteed by the red-black balancing scheme), giving an overall complexity of O(L log a).
+	The worst case cost of key search in a Ternary Search Tree (TST), the basic structure of which is shown in \figurename{\ref{fig:trie-tst}} (note how the left and right pointers form a binary search tree for a single character), takes place in the case where each intermediate tree is as full as it could possibly be - namely it has as many nodes as there are symbols in the alphabet, a. In this case, the search requires a linear pass of key length, L, down these trees, where each tree takes O(log a) (guaranteed by a red-black balancing scheme), giving an overall complexity of O(L log a).
 	
 	\subsubsection{Binary Search Trees (BSTs)}
 	
-	These are similar in style to TSTs, providing some guarantee of access time due to their internal structure. Kept properly balanced, this time is O(log n) comparisons where n is the length of the key being searched. However, since their keys are strings of characters, in terms of characters the access time is O(L log n) as each key comparison takes O(key length) time. This shows that TSTs have a lower asymptotic cost whenever n > a, in other words when there are more strings stored than the alphabet size of a single character. BSTs are also notable for their lack of an easy way to perform string prefix matching, a function which is trivial in a ternary search tree.
+	These are similar in style to TSTs, providing some guarantee of access time due to their internal structure. Kept properly balanced, this time is bounded as O(log n) comparisons where n is the number of strings in the tree. To align with the analysis above, I will also bound the value of n by the string length as O($a^{L}$) (by assuming that $a \gg 1$), giving a time bound of O(log($a^{L}$) = O(L log a). However, since their keys are strings of characters, in terms of characters the access time is O($L^{2}$ log a) as each key comparison takes O(key length) time. This shows that BSTs have a higher asymptotic cost than TSTs. BSTs are also notable for their lack of an easy way to perform string prefix matching, a function which is trivial in a ternary search tree.
 	
 	\subsubsection{Hash maps}
 	
 	On average, hash maps can be shown to perform very well indeed, having an amortised constant average lookup time. However, this lookup time is highly dependent on how good their hash function is for the particular keys inserted - the degenerate case for the data structure being that all keys hash to the same value and so the structure is reduced to a linked list with linear access time. In a hash map it is even harder to perform prefix matching than in a BST.
+	
+	\subsection{The data structure}
+	
+	The basis of the data structure is that of a trie, traditionally used to store strings in a natural language dictionary and similar applications. While strings are commonly used as keys, and for simplicity I will do so here, there is no particular reason why an array of any other type could not be used in place of character arrays to represent strings. This is reflected in my implementation of the data structure as a template class with the array type yet to be determined.
+	
+	The simple formulation of the trie data structure operates on arrays of values taken from some fixed-length alphabet. It forms a tree structure, where each node holds an array of the same length as the alphabet, of pointers to other nodes. To search for a key (which is considered as a character array here), the first character of the key is inspected, and the appropriate pointer from the root node's array is followed. If it is NULL, then the key does not exist; otherwise the search is continued with successive characters from the requested key. Each node also has a bit which indicated whether or not it represents the end of a key; if this is set to true when the end of the key array is reached, then the key exists.
+	
+	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary search tree (TST), presented in 1964\cite{Clampett-ternary}. \figurename{ \ref{fig:trie-tst}} shows the difference in structure between the standard trie and the TST.
+	
+	However, one must still consider the degenerate case where the binary tree becomes linear down one side, at which point the access time grows too high. This can be avoided by using one of the available techniques to balance binary trees; in this implementation I have used a red-black binary tree, which guarantees that the height of the longest branch of the tree is no more than twice the height of the shortest branch of the tree.
 	
 	\subsection{Development approach}
 	
@@ -443,7 +444,7 @@
 	
 	DTrace calls any application which can accept events from its probes a consumer. A consumer has to interact with libdtrace via a C API, the core part of which is a loop of continuous polling looking for new events which can be consumed. This API is not intended for public use as it is subject to change without notice and is only meant to be used by the \texttt{dtrace} command and other similar utilities. However, since this project has already modified the kernel I feel that it is appropriate to directly link against this library, as this becomes effectively another utility provided by DTrace.
 	
-	The core of the consumer must establish a connection to DTrace, install a program (which specifies which probes to activate and what to execute when they fire), and then listen for events being emitted by the probes and capture their output. To improve the readability and extensibility of this component, I have abstracted information on each of the probes in which this consumer is interested into its own class, from which the main component assembles the program based on all the probes it can find, and then passes any events to a handler defined by the same class. These classes all have a common base class, \texttt{ProbeType}, which defines a simple but strict interface for the probe specifications.
+	The core of the consumer must establish a connection to DTrace, install the instrumentation points and specify what to do when they fire, and then listen for events being emitted by the probes and capture their output. To improve the readability and extensibility of this component, I have abstracted information on each of the probes in which this consumer is interested into its own class, from which the main component assembles the program based on all the probes it can find, and then passes any events to a handler defined by the same class. These classes all have a common base class, \texttt{ProbeType}, which defines a simple but strict interface for the probe specifications.
 	
 	\begin{figure}
 		\begin{verbatim}
@@ -476,13 +477,14 @@
 	
 	\subsection{Benchmark}
 	
-	To evaluate the throughput of the network stack under these different conditions, I used the Inter-Process Communication (IPC) benchmark tool presented as part of the MPhil ACS course L41 (Advanced Operating Systems). This is a simple application which sets up a pair of TCP sockets linked by the loopback interface, and then finds the bandwidth of the link by sending a fixed-size buffer over it and timing the operation.
+	To evaluate the throughput of the network stack under these different conditions, I used the Inter-Process Communication (IPC) benchmark tool presented as part of the MPhil ACS course L41 (Advanced Operating Systems)\cite{L41}. This is a simple application which sets up a pair of TCP sockets linked by the loopback interface, and then finds the bandwidth of the link by sending a fixed-size buffer over it and timing the operation.
 	
 	\subsection{Experimental method}
 	
-	First, a baseline figure was found by running the benchmark on a freshly compiled kernel without any calls inserted, and then the benchmark was run under each set of test conditions. The benchmark was repeated 100 times in each scenario, as this was found to provide enough data for a reasonable distribution plot to be created, whilst keeping the execution time of the experiment acceptable. This repeating of the benchmark was run by the shell script in Appendix \ref{appendix:IPC}.
+	First, a baseline figure was found by running the benchmark on a freshly compiled kernel without any calls inserted, and then the benchmark was run under each set of test conditions. The benchmark was repeated 100 times in each scenario, as this was found to provide enough data for a reasonable distribution plot to be created, whilst keeping the execution time of the experiment acceptable. This repetition of the benchmark was handled by the shell script in Appendix \ref{appendix:IPC}.
 	
-	To ensure comparability of results, I made sure that the main kernel code base did not change between the different runs, and that the kernel in use was freshly compiled so that I could be sure of its code content. No other high-loading userspace applications were running on the FreeBSD system throughout the entirety of the test, and my test script left a sufficiently large gap in-between benchmark runs to allow the system to return to idle. Despite all of these controls, one must also remember that this FreeBSD system is running in a virtualised environment with Windows 10 as the host operating system. While I tried not to cause undue load on the Windows system whilst the benchmarks were running, it is always possible that some automated background tasks will have affected the results. 
+	To ensure comparability of results, I made sure that the main kernel code base did not change between the different runs, and that the kernel in use was freshly compiled so that I could be sure of its code content. No other high-loading userspace applications were running on the FreeBSD system throughout the entirety of the test, and my test script left a sufficiently large gap in-between benchmark runs to allow the system to return to idle. Despite all of these controls, one must also remember that this FreeBSD system is running in a virtualised environment with Windows 10 as the host operating system. While I tried not to cause undue load on the Windows system whilst the benchmarks were running by disabling background antivirus checks and background Windows apps, it is always possible that some other automated background tasks will have affected the results.
+	
 	
 	\subsection{Results}
 	
