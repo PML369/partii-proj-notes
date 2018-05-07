@@ -1,1 +1,1 @@
-dtrace -x bufsize=256M -x switchrate=100 -s net-provider.D > /dev/null
+dtrace -x bufsize=128M -x switchrate=10 -s net-provider.D >> /dev/null
