@@ -14,8 +14,9 @@ while ($n < 250)
 	# Allow the system to calm down before running benchmark
 	sleep 2
 	# 16GiB transfer is found to put the system under significant
-	# load for about 10 seconds, on my machine
-	$ipc -i tcp -t 17179869184 2proc | awk '{print $1}' >> $csv
+	# load for about 10 seconds, on my machine. Reduced to 1GiB for
+	# the instrumented runs which brings runtime back to ~25s per run.
+	$ipc -i tcp -t 1073741824 2proc | awk '{print $1}' >> $csv
 	@ n += 1
 end
 
