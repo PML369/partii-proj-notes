@@ -9,6 +9,7 @@
 \usepackage{appendix}
 \usepackage{subcaption}
 \usepackage{tikz-uml}
+\usepackage{csvsimple}
 
 \usepackage{tikz} % Diagrams
 \usetikzlibrary{positioning}
@@ -489,6 +490,39 @@
 	
 	\subsection{Results}
 	
+	\begin{table}[b]
+		\centering
+		\begin{tabular}{|c|r|r|r|r|r|r|}
+			\hline
+			& \multicolumn{3}{c|}{\bfseries 16k byte MTU}
+			& \multicolumn{3}{c|}{\bfseries 1500 byte MTU} \\ \hline
+			& \bfseries Mean & \bfseries Variance & \bfseries CoV
+			& \bfseries Mean & \bfseries Variance & \bfseries CoV
+			\csvreader[head to column names]{include/ipc-stats.csv}{}%
+			{ \\\thecsvrow & \msm & \vsm & \csm & \mlg & \vlg & \clg }%
+			\\\hline
+		\end{tabular}
+		\caption{Summary statistics for the distribution of results obtained from benchmarking of network throughput in each of the 5 scenarios listed in \figurename{\ref{fig:ipc-eval}}. CoV is used as an abbreviation for the Coefficient of Variation}
+		\label{fig:ipc-table}
+	\end{table}
+	
+	\begin{figure}[b]
+		\begin{subfigure}{\linewidth}
+			\centering
+			\includegraphics[width=0.9\linewidth]{include/ipc-mtu1500.png}
+			\caption{Distributions using the standard Ethernet MTU of 1500 bytes.}
+			\label{fig:ipc-eval-1500}
+		\end{subfigure}
+		\begin{subfigure}{\linewidth}
+			\centering
+			\includegraphics[width=0.9\linewidth]{include/ipc-mtu16k.png}
+			\caption{Distributions using my system's default MTU of 16k bytes.}
+			\label{fig:ipc-eval-16k}
+		\end{subfigure}
+		\caption{A pair of histogram plots generated from the benchmark data I collected with the two chosen MTU sizes, to assess the additive effect of each code component.}
+		\label{fig:ipc-eval}
+	\end{figure}
+
 	\subsection{Analysis \& Conclusions}
 	
 	\subsection{Moving work into DTrace}
