@@ -50,12 +50,12 @@
 			Project Title:      & \bf Adding network subsystem provenance \\
 								& \bf collection to CADETS \\
 			Examination:        & \bf Computer Science Tripos -- Part II, 2018  \\
-			Word Count:         & \bf 5900\footnotemark[1]  \\
+			Word Count:         & \bf 6976\footnotemark[1]  \\
 			Project Originator: & Dr R.~Sohan                    \\
 			Supervisor:         & Dr G.~Jenkinson                    \\ 
 		\end{tabular}
 	}
-	\footnotetext[1]{This word count was computed on 25/04/2018	by \texttt{texcount -merge -dir -sub=chapter -utf8 -sum dissertation.tex}
+	\footnotetext[1]{This word count was computed on 12/05/2018	by \texttt{texcount -merge -dir -sub=chapter -utf8 -sum dissertation.tex}
 	}
 	\stepcounter{footnote}
 	
@@ -484,9 +484,11 @@
 	
 	First, a baseline figure was found by running the benchmark on a freshly compiled kernel without any calls inserted, and then the benchmark was run under each set of test conditions. The benchmark was repeated 100 times in each scenario, as this was found to provide enough data for a reasonable distribution plot to be created, whilst keeping the execution time of the experiment acceptable. This repetition of the benchmark was handled by the shell script in Appendix \ref{appendix:IPC}.
 	
-	To ensure comparability of results, I made sure that the main kernel code base did not change between the different runs, and that the kernel in use was freshly compiled so that I could be sure of its code content. No other high-loading userspace applications were running on the FreeBSD system throughout the entirety of the test, and my test script left a sufficiently large gap in-between benchmark runs to allow the system to return to idle. Despite all of these controls, one must also remember that this FreeBSD system is running in a virtualised environment with Windows 10 as the host operating system. While I tried not to cause undue load on the Windows system whilst the benchmarks were running by disabling background antivirus checks and background Windows apps, it is always possible that some other automated background tasks will have affected the results.
+	To ensure comparability of results, I made sure that the main kernel code base did not change between the different runs, and that the kernel in use was freshly compiled so that I could be sure of its code content. No other high-loading userspace applications were running on the FreeBSD system throughout the entirety of the test, and my test script left a sufficiently large gap in-between benchmark runs to allow the system to return to idle. Despite all of these controls, one must also remember that this FreeBSD system is running in a virtualised environment with Windows 10 as the host operating system. While I tried not to cause undue load on the Windows system whilst the benchmarks were running by disabling background antivirus checks and background Windows apps, it is always possible that some other background tasks will have affected the results.
 	
-	For the final evaluation, I took the advice of the L41 lab instructions and manually forced the kernel to use at most a 32Mb buffer for socket connections, and part of the experiment was to compare the loopback interface's default MTU of 16kb with a more realistic 1500 bytes.
+	For the final evaluation, I took the advice of the L41 lab instructions and manually forced the kernel to use at most a 32MiB buffer for socket connections, and part of the experiment was to compare the loopback interface's default MTU of 16kiB with a more realistic 1500 bytes, as this is the size of a standard Ethernet frame.
+	
+	During the course of running the benchmarks, it became evident that 16GiB transfer per benchmark run was too large for the slower scenarios and this was causing the benchmarks to take far too long to run. To combat this, I reduced the transfer size to 1GiB in the following scenarios (see \figurename{ \ref{fig:ipc-eval}} for definitions): MTU 1500 bytes: scenarios 3, 4, and 5, MTU 16kbytes: scenarios 3 and 5 only. This should still give comparable results across transfer sizes, as the key factor in choosing the original 16GiB was that it put the system under significant load for a few seconds in order that the transfer rate should become stable. In the slower scenarios, this condition was still met with the 1GiB benchmark.
 	
 	\subsection{Results}
 	
@@ -506,7 +508,7 @@
 		\label{fig:ipc-table}
 	\end{table}
 	
-	\begin{figure}[b]
+	\begin{figure}
 		\begin{subfigure}{\linewidth}
 			\centering
 			\includegraphics[width=0.9\linewidth]{include/ipc-mtu1500.png}
@@ -523,17 +525,53 @@
 		\label{fig:ipc-eval}
 	\end{figure}
 
+	In \figurename{ \ref{fig:ipc-eval-1500}}, we see that in all 5 scenarios the distribution of the throughput measurements appears close to a Gaussian distribution, although the list of coefficients of variation in \tablename{ \ref{fig:ipc-table}} shows that some of these distributions differ in scale. With a larger MTU of 16kbytes, however, it is clear that there are some differences in the distributions of the measurements from the histogram in \figurename{ \ref{fig:ipc-eval-16k}} simply by inspecting the shape. The distributions get particularly narrow in the later scenarios, which can also be seen numerically from the variance figures.
+	
 	\subsection{Analysis \& Conclusions}
 	
-	\subsection{Moving work into DTrace}
+	As expected, network throughput was lower when using UUID tagging and/or DTrace probes in the kernel in general, but it is particularly interesting to note that scenario 3, in which I simply used existing probes which are defined in a similar way to those I created in this project, had the lowest throughput for both MTU sizes. Perhaps this indicates that the complexity of the DTrace probes is more important than their number (since the full project code certainly has more enabled probes than scenario 3), as the built-in probes have relatively complex argument transformations to be performed in DTrace.
 	
-	Discuss how having a copy of \verb|m_tag_locate| in DTrace's D language would allow the `off' cost of probes to be reduced to near zero. Talk about how this is not available as it requires a loop over a linked list, propose a general form of bounded iteration to keep DTrace people happy.
+	At first glance, the effect of the project's code on system throughput looks to be very significant, as the code reduced throughput to just 2.8\% of its original value with a 16kbyte MTU, though with a 1500 byte MTU this rose to 15.2\%, a marked improvement. Despite these uninspiring figures, I argue that in normal use performance has not in fact been degraded, since these figures measured the maximum possible throughput on my machine. With the full project code enabled, both MTU values had a throughput measurement of 84MiB/sec, which equates to 672Mib/sec, and it is certainly very rare for a consumer PC to be able to saturate such a link speed under normal usage. Clearly the additional code in use will have implications for power consumption, but this was not a major concern in this project.
+	
+	Based on the analysis above where I argue that the achieved throughput when the project is in use is still sufficient for the type of computer the benchmarks were run on, I claim that the project has satisfied the second part of its success criterion, which relates to the performance impact of the project.
+	
+	\subsection{Moving work into DTrace}
+	\label{sec:dtrace-iteration}
+	
+	It is particularly apparent from \figurename{ \ref{fig:ipc-eval-1500}} that little performance difference was observed between scenarios 4 and 5, the principle difference between which is the enabling of the project's new DTrace probes. This may suggest that the disabled DTrace probes are incurring too high a cost to normal execution; keeping these costs as low as possible was a design goal of DTrace\cite{Gregg-DTrace}.
+	
+	The obvious unnecessary additional cost being incurred by almost all added probes is that they have to extract a packet's UUID in order to pass this to the probe. Recall that UUIDs are part of a set of so-called \texttt{tags} attached to a particular \verb|mbuf|, and so finding the appropriate tag is performed in the kernel using \verb|m_tag_locate|. Currently this is being called for every packet which has a UUID, even if the probes are disabled, and so providing a copy of this function in DTrace's D language would allow the disabled probe effect to be reduced to near zero again. Unfortunately this is not a trivial option as it requires a loop over a linked list, and iteration primitives to support such a loop are not provided in the D language.
+	
+	Iteration primitives are not provided by the D language as DTrace also puts significant emphasis on not affecting the code it instruments, in this case the kernel, providing guarantees on memory access and so forth. A lack of support for iteration guarantees by construction that code written in the language cannot form an infinite loop and so cannot affect the kernel's behaviour in that way. As further work, I propose instead modifying the D language to support a general form of bounded iteration, which could then be used by a copy of \verb|m_tag_locate|, in order that we may still provide a guarantee that all D code will terminate whilst increasing the expressiveness of the language.
 	
 	\section{Functionality of example application}
 	
+	The example application which I have produced fulfils the requirements of extension number one in my project proposal, which was to present collected data in a user-friendly format, as well as demonstrating that the project fulfils the first part of its success criterion, namely that it collects the data in the first place. The Web-based tool allows any computer with a Web browser to be used as a client for analysis, and therefore can include non-FreeBSD systems if required.
+	
+	\begin{figure}
+		\centering
+		\includegraphics[width=\linewidth]{include/ui-timing-box.png}
+		\caption{The application can display statistical information about the time packets have spent in each layer of the network stack. It queries the backend application to find what layers it understands on the current system, and then provides options to the user for them to request information about any layers they are interested in.}
+		\label{fig:ui-timing-box}
+	\end{figure}
+
+	\begin{figure}[b]
+		\centering
+		\caption{The application provides a heatmap of the kernel address space, showing which kernel memory addresses are most commonly used to store packet data. Clicking on a heatmap cell draws a new `zoomed in' heatmap of the data which fits logically within that cell.}
+		\label{fig:ui-heatmap}
+	\end{figure}
+	
 	\chapter{Conclusion}
 	
-	Perhaps note here the absence of automated tools for kernel source searching, and explain why I chose not to use them this time and under what circumstances I would.
+	The goals of this project were to provide metadata collection tools for network packets by tracking individual packets as they flow through the network stack of the FreeBSD kernel, allowing timing and other information to be collected and queried at a later stage. The provision of UUID tagging in combination with new DTrace kernel probes has facilitated this data collection, and I have evaluated the performance impact of my project as a whole to find that it is acceptable. This means that the project's success criterion, as defined on page 3 of the attached project proposal, has been met.
+	
+	In addition to the core project's success, I have also completed the work required for extension number one in producing a user application to analyse the data collected from the running kernel and presenting this in a user-friendly and interactive format.
+	
+	\section{Further Work}
+	
+	My principal proposition for further work is to add provision for bounded iteration to DTrace's D language, as I outlined in Section \ref{sec:dtrace-iteration}.
+	
+	Additionally, it is clear that I chose not to use any automated static analysis tools in my work on existing kernel code as part of the project. This decision was taken because I did not feel that any benefit would be gained from doing so in this case, as it would have taken me just as long to familiarise myself with what I was looking for within the kernel code and set the tools up to do this, as it did for me to inspect the source manually. Now that I have a better understanding of the kernel code in question, in future I would consider more seriously the possibility of using such tools.
 	
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	% the bibliography
