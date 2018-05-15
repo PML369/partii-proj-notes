@@ -50,12 +50,12 @@
 			Project Title:      & \bf Adding network subsystem provenance \\
 								& \bf collection to CADETS \\
 			Examination:        & \bf Computer Science Tripos -- Part II, 2018  \\
-			Word Count:         & \bf 7493\footnotemark[1]  \\
+			Word Count:         & \bf 7979\footnotemark[1]  \\
 			Project Originator: & Dr R.~Sohan                    \\
 			Supervisor:         & Dr G.~Jenkinson                    \\ 
 		\end{tabular}
 	}
-	\footnotetext[1]{This word count was computed on 12/05/2018	by \texttt{texcount -merge -dir -sub=chapter -utf8 -sum dissertation.tex}
+	\footnotetext[1]{This word count was computed on 15/05/2018	by \texttt{texcount -merge -dir -sub=chapter -utf8 -sum dissertation.tex}
 	}
 	\stepcounter{footnote}
 	
@@ -67,7 +67,7 @@
 	
 	\section*{Work Completed}
 	
-	I have implemented a scheme for assigning Universally Unique Identifiers to each packet passing through the network stack of the FreeBSD kernel, along with DTrace probes to extract information pertaining to the now-identifiable packets. I extract this information in an example user-space application which stores the data it receives in memory and is able to provide aggregated data, graphs etc. to users via a Web front end.
+	I have implemented a scheme for assigning Universally Unique IDentifiers to each packet passing through the network stack of the FreeBSD kernel, along with DTrace probes to extract information pertaining to the now-identifiable packets. I extract this information in an example user-space application which stores the data it receives in memory and is able to provide aggregated data, graphs etc. to users via a Web front end.
 	
 	\section*{Special Difficulties}
 	
@@ -84,10 +84,10 @@
 	extent for a comparable purpose.
 	
 	\bigskip
-	\leftline{Signed [signature]}
+	\leftline{Signed P.M.~Lotts}
 	
 	\medskip
-	\leftline{Date [date]}
+	\leftline{Date \today}
 	
 	\tableofcontents
 	
@@ -106,7 +106,7 @@
 	
 	The security aspect of the tool is most useful in combating Advanced Persistent Threats (APTs)\cite{Tankard-APT}, where the attacker slowly infiltrates the target system, hiding out of sight until they can exploit knowledge gained to access the enterprise’s internal network. This may allow the attacker to extract sensitive data, from databases for example, in such a way that the access is very hard to distinguish from normal access. Eventually, it is likely that the malware will make a mistake and trigger an indicator of compromise to be observed by administrators, but by then it is difficult to tell what data the malware has seen.
 	
-	As pat of the DARPA Transparent Computing Program\cite{DARPA-CT}, the Computer Laboratory has a project which is trying to combat this by building CADETS\cite{CADETS-main} on top of the FreeBSD operating system, which tracks the provenance of data by collecting metadata from computers all over the network about what processes act on what data and when. This metadata is then collected in a distributed database, where it can be analysed to trace data flows throughout the computer system.
+	As part of the DARPA Transparent Computing Program\cite{DARPA-CT}, the Computer Laboratory has a project which is trying to combat this by building CADETS\cite{CADETS-main} on top of the FreeBSD operating system, which tracks the provenance of data by collecting metadata from computers all over the network about what processes act on what data and when. This metadata is then collected in a distributed database, where it can be analysed to trace data flows throughout the computer system.
 	
 	My project adds support for collecting metadata on network packets as they flow through the kernel	network stack. The data collected will allow users of CADETS to seek out suspicious activity which may be being used to attack a system, and will be able to provide a list of locations in kernel memory where packet data were stored. The latter allows a system administrator to infer what data may have been leaked if they are able to determine that some malicious code had access to a particular set of kernel memory addresses.
 	
@@ -129,7 +129,7 @@
 	This layer is responsible for the reliable delivery of data (if required) across a layer 3 link, and creates the notion of a connection which is opened, used to transmit/receive data, and then closed. This is the most common place for application designers to make a choice about layer implementation - TCP or UDP. TCP (the Transmission Control Protocol) provides reliable, in-order delivery of data to higher layers, along with trying to provide fairness between connections through adaptive transmission rate control to avoid congestion. Its main alternative, UDP (the User Datagram Protocol), does not provide reliable delivery but in removing this feature is often able to operate with lower latency than TCP.
 	
 	\subsection{UNIX Sockets API}
-	Under the UNIX `everything is a file' abstraction, layer 4 connections are provided to user applications through sockets, objects which are opened and closed in a similar manner to files and which yield a file descriptor for I/O operations while the connection is open. This abstraction is provided by the kernel (meaning all layers described previously are implemented either in hardware or the kernel) and used by other kernel components as well as all userspace applications which perform network communication.
+	Under the UNIX `everything is a file' abstraction, layer 4 connections are provided to user applications through sockets, objects which are opened and closed in a similar manner to files and which yield a file descriptor for I/O operations while the connection is open. This abstraction is provided by the kernel (meaning all layers described previously are implemented either in hardware or the kernel) and is used by other kernel components as well as all userspace applications which perform network communication.
 	
 	\section{Probe Effect}	
 	When tracing any application, it is important to consider the performance impact of the tracing system on the target application. Timings can be critical to correct operation of the application, but even when this is not the case it would still be all too easy to impact system performance to the point where it no longer meets specifications. Causing the system to degrade to this point undermines the purpose of the tracing in the first place - namely to run all the time the application is running in the real world to gather data which is later used for security and performance analysis.
@@ -138,7 +138,7 @@
 	
 	With regards to timings affecting system operation, parts of the network stack are particularly vulnerable to latency, as timers are integral to their operation. One example of such a protocol is TCP, where Padhye\cite{Padhye-TCP} has shown that the throughput of a TCP connection is inversely proportional to the latency which TCP observes on the network connection. Clearly, any undue addition to this latency by low-level network code could have dire consequences for application throughput on the system.
 	
-	\section{Similar Work}
+	\section{Related Work}
 	
 	Fonseca et al.\cite{X-Trace} describes X-Trace, which provides a similar solution to my project but only for user level applications; it attaches metadata to the real data flow within the application, and then traps this prior to data transmission and logs the metadata using a separate system. While my project will be attaching metadata to kernel packets, it will not be collecting metadata together in the kernel, instead firing a DTrace probe for each event.
 	
@@ -161,8 +161,6 @@
 	
 	The FreeBSD kernel provides a means of tagging its main internal structure of interest, namely \verb|struct mbuf| using \verb|struct mbuf_tags|. It is thought that this will be sufficient to tag a packet’s data with an unique identifier in order to track its progress through the kernel’s network stack. \verb|struct mbuf| is used by the FreeBSD kernel as a generic fixed size memory buffer (hence the name) to store network packet data as it passes from the sockets API all the way to physical network interfaces. The structures have the ability to be chained together in a linked-list like structure to store variable amounts of data, and packets are edited in place where headers must be added and so forth.
 	
-	Under Linux, the Resourceful framework is able to collect data from auto-generated tracepoints	within the Linux kernel with relatively low overhead, but it does not currently inspect the network subsystem.
-	
 	\section{Installing the Development System}
 	
 	I had no prior experience with FreeBSD usage or development, so the first challenge was to get a system up and running to be used for both development and testing. I decided to host FreeBSD as a virtual machine on my Windows 10 laptop, as it has reasonable performance for compiling code, whilst being portable and allowing me to work on the project wherever I am. The virtual machine was set up using Oracle\texttrademark\ VM VirtualBox\footnote{\texttt{http://www.virtualbox.org/}}, as I have most experience using this virtualisation application.
@@ -183,7 +181,7 @@
 	}
 	and possible exit routes into lower layers. Once the packets had left to go to device drivers, the study then turned to the \texttt{netisr} system, which is responsible for receiving packets from device drivers in the FreeBSD kernel and handing them on to the appropriate next layer (usually the IP layer) to be processed. From here, packets were followed back up the network stack in a similar manner, up to the end of \verb|ip_input|, where packets leave the IP layer to go to the next layer up.
 	
-	At this point, it was noticed that the project was getting a little behind schedule and, in a meeting with my supervisor, it was decided that for the moment the project would not look any higher than the IP layer, as there was no significant academic benefit to be gained from continuing up to look at the TCP layer\footnote{In order to associate packets with sockets, however, a small amount of tracing would have to be added to the TCP layer.}. This could be completed at a later stage in the project if time became available.
+	At this point, it was noticed that the project was getting a little behind schedule and, in a meeting with my supervisor, it was decided that for the moment the project would not look any higher than the IP layer\footnote{In order to associate packets with sockets, however, a small amount of tracing would have to be added to the TCP layer.}. We assessed that continuing up to look at the TCP layer was low risk in comparison to the remainder of the project, and so priority was given the the remainder and further study could be completed at a later stage in the project if time became available.
 	
 	\section{Challenges of kernel development}
 	
@@ -199,11 +197,11 @@
 	
 	\subsection{Userspace application}
 	
-	To demonstrate the power of the kernel-level tool which has been produced, the project will also provide an example application to collect and analyse the data produced by the kernel, which is extension 1 in the project proposal. This application shall consist of three main components; data input takes the form of a DTrace consumer which uses libdtrace to enable probes and gather data, data storage uses carefully considered data structures in order to balance the trade-off between memory space consumed and access performance, and analysis is performed by the final component, which displays its results through a Web-based front-end. I chose such a front-end because I did not feel that spending project time getting a graphical user interface up and running on FreeBSD had any academic value, and a Web tool provides accessibility for system administrators who would wish to use this application on headless servers.
+	To demonstrate the power of the kernel-level tool which has been produced, the project will also provide an example application to collect and analyse the data produced by the kernel, which is extension 1 in the project proposal. This application shall consist of three main components; data input takes the form of a DTrace consumer which uses libdtrace to enable probes and gather data, data storage uses carefully considered data structures in order to balance the trade-off between memory space consumed and access performance, and analysis is performed by the final component, which displays its results through a Web-based front-end. I chose such a front-end because I felt that getting a graphical user interface up and running on FreeBSD was significantly higher risk, and a Web tool provides accessibility for system administrators who would wish to use this application on headless servers.
 	
 	\section{UUID algorithm selection}
 	
-	As I have discussed earlier, a key part of the kernel development will be to minimise the impact which additional tracing code has on the performance of the network stack, in particular latency and throughput. The algorithm used to generate unique identifiers is expected to be the most costly operation added to the kernel, so this should be chosen with care. In principle it is possible to reduce the cost of UUID generation to this project by adding an additional piece of hardware to the computer, perhaps made available by the kernel through the /dev interface, to continuously generate a pool of UUIDs. However, for this project I have decided not to use such a system so that my code can be used on systems without such external hardware.
+	As I have discussed earlier, a key part of the kernel development will be to minimise the impact which additional tracing code has on the performance of the network stack, in particular latency and throughput. The algorithm used to generate unique identifiers is expected to be the most costly operation added to the kernel, so this should be chosen with care.
 	
 	Although it is expected that the generation of UUIDs will be the most costly operation involved in packet tagging, it is also possible that storing UUIDs for each packet will have a significant impact on performance on the network stack. It has been shown that \verb|mbuf|s which are poorly aligned for the local cache architecture can have such an impact, and a similar issue could be caused if the UUID storage shares a cache line with part of an \verb|mbuf|, and so increases cache pressure on the system.
 	
@@ -225,11 +223,11 @@
 		\label{fig:IPC-uuid-bench}
 	\end{figure}
 	
-	As shown in \figurename{\ref{fig:IPC-uuid-bench}}, the addition of UUID a generation algorithm did have a negative impact on performance, with a 20\% reduction in performance for both algorithms. There is little difference between the speed of the two algorithms, which is particularly surprising given how different they are in modus operandi.
+	As shown in \figurename{ \ref{fig:IPC-uuid-bench}}, the addition of UUID a generation algorithm did have a negative impact on performance, with a 20\% reduction in performance for both algorithms. There is little difference between the speed of the two algorithms, which is particularly surprising given how different they are in modus operandi.
 	
 	\subsection{Conclusion}
 	
-	From the results in \figurename{\ref{fig:IPC-uuid-bench}}, there is clearly little to pick between the two UUID generation algorithms under consideration. However, this test was run with constant inputs to the v5 generator, and so the v5 system would still need some way of generating unique inputs. Doing so would likely involve implementing something similar to the v1 algorithm in our case, and so I chose to proceed using version 1 of the algorithm.
+	From the results in \figurename{ \ref{fig:IPC-uuid-bench}}, there is clearly little to pick between the two UUID generation algorithms under consideration. However, this test was run with constant inputs to the v5 generator, and so the v5 system would still need some way of generating unique inputs. Doing so would likely involve implementing something similar to the v1 algorithm in our case, and so I chose to proceed using version 1 of the algorithm.
 	
 	
 	\chapter{Implementation}
@@ -242,7 +240,7 @@
 	
 	The overriding design goal for this new kernel component was to provide a clear, concise interface to the rest of the kernel, ideally only requiring a single function call to be inserted at a given point in other files. All functions have been declared to begin with the prefix \verb|net_uuid| (also the name of the component as a whole) in order to prevent namespace pollution for existing code and to make it clear when control flows into this component. A single call to \verb|net_uuid_tag_packet()| at the point a packet enters the scope of tracing will generate a UUID for the packet and attach a new tag to it. The names of the \verb|net_uuid_*| family of functions are quite long by kernel standards so as to be transparent about what each function does.
 	
-	Reflecting the code's place in the operating system kernel, I have used the defensive programming technique on all the functions defined by the external interface (and most internal ones) in order to ensure that sensible behaviour occurs when functions receive a NULL, or otherwise invalid, argument. As this code is only for tracing such scenarios do not represent errors for the system as a whole, so are mostly ignored silently. I used defensive programming to provide graceful degradation in the event of a failure in my code, so that for example the kernel does not crash due to a memory error - in all cases, it is considered safer to not trace a particular packet than crash the kernel.
+	Reflecting the code's place in the operating system kernel, I have used the defensive programming technique on all the functions defined by the external interface (and most internal ones) in order to ensure that sensible behaviour occurs when functions receive a NULL, or otherwise invalid, argument. As this code is only for tracing such scenarios do not represent errors for the system as a whole, so are mostly ignored silently. I used defensive programming to provide graceful degradation in the event of a failure in my code, so that for example the kernel does not panic due to a memory error - in all cases, it is considered safer to not trace a particular packet than crash the kernel.
 	
 	The \verb|struct mtag_uuid|, as shown in \figurename{ \ref{fig:mtag_uuid}}, also contains pointers to other structures which together allow a tree of such tags to be formed, representing the fragmentation and reassembly of packets which may occur in the network stack. This adds complication when it comes to freeing the structure, as it would not be acceptable for kernel code to cause memory leaks and so the whole tree must be freed carefully. To do this, the free function uses a linked list as a queue in order to perform a breadth-first search of all tags in the tree. The FreeBSD kernel makes available a set of macros for the management of linked lists, as of course the C standard does not contain such advanced data structures.
 	
@@ -267,7 +265,7 @@
 	
 	\subsection{DTrace probes}
 	
-	DTrace probes can be part of any one of several `providers', depending on how they are defined. In this project I am using the Statically Defined Tracing (SDT) provider to set fixed probe points within the kernel code. All work with these probes is done using preprocessor macros defined by the SDT provider to fill everything in for me. I first had to declare and define (in a header and source file, respectively) the different probes I would be using, and then these probes are used with further macros. In the same style as the TCP and IP subsystems', I decided to provide shortened macros (all named \verb|NET_UUID_*| for similar reasons to previously) to fire the probes which I would be creating.
+	DTrace probes can be part of any one of several `providers', depending on how they are defined. In this project I am using the Statically Defined Tracing (SDT) provider to set fixed probe points within the kernel code. All work with these probes is done using preprocessor macros defined by the SDT provider to fill everything in for me. I first had to declare and define (in a header and source file, respectively) the different probes I would be using, and then these probes are used with further macros. In the same style as the TCP and IP subsystems, I decided to provide shortened macros (all named \verb|NET_UUID_*| for similar reasons to previously) to fire the probes which I would be creating.
 	
 	Due to limitations within DTrace's D language, the probes currently involve more work in the kernel than would be ideal. The process of locating the required tag on an mbuf and extracting the UUID from this must be performed before the probe is fired, as DTrace is unable to do this. In other areas, however, DTrace has some nice features which are advantageous here, including the concept of type translations between native kernel types and special types in the D language. These are used to provide a stable type in DTrace for a particular probe, even when the underlying kernel type may be altered.
 	
@@ -384,7 +382,7 @@
 	
 	\subsubsection{Complexity}
 	
-	The worst case cost of key search in a Ternary Search Tree (TST), the basic structure of which is shown in \figurename{\ref{fig:trie-tst}} (note how the left and right pointers form a binary search tree for a single character), takes place in the case where each intermediate tree is as full as it could possibly be - namely it has as many nodes as there are symbols in the alphabet, a. In this case, the search requires a linear pass of key length, L, down these trees, where each tree takes O(log a) (guaranteed by a red-black balancing scheme), giving an overall complexity of O(L log a).
+	The worst case cost of key search in a Ternary Search Tree (TST), the basic structure of which is shown in \figurename{ \ref{fig:trie-tst}} (note how the left and right pointers form a binary search tree for a single character), takes place in the case where each intermediate tree is as full as it could possibly be - namely it has as many nodes as there are symbols in the alphabet, a. In this case, the search requires a linear pass of key length, L, down these trees, where each tree takes O(log a) (guaranteed by a red-black balancing scheme), giving an overall complexity of O(L log a).
 	
 	\subsubsection{Binary Search Trees (BSTs)}
 	
@@ -398,9 +396,9 @@
 	
 	The basis of the data structure is that of a trie, traditionally used to store strings in a natural language dictionary and similar applications. While strings are commonly used as keys, and for simplicity I will do so here, there is no particular reason why an array of any other type could not be used in place of character arrays to represent strings. This is reflected in my implementation of the data structure as a template class with the array type yet to be determined.
 	
-	The simple formulation of the trie data structure operates on arrays of values taken from some fixed-length alphabet. It forms a tree structure, where each node holds an array of the same length as the alphabet, of pointers to other nodes. To search for a key (which is considered as a character array here), the first character of the key is inspected, and the appropriate pointer from the root node's array is followed. If it is NULL, then the key does not exist; otherwise the search is continued with successive characters from the requested key. Each node also has a bit which indicated whether or not it represents the end of a key; if this is set to true when the end of the key array is reached, then the key exists.
+	The simple formulation of the trie data structure operates on arrays of values taken from some fixed-length alphabet. It forms a tree structure, where each node holds an array of the same length as the alphabet, of pointers to other nodes. To search for a key (which is considered as a character array here), the first character of the key is inspected, and the appropriate pointer from the root node's array is followed. If it is NULL, then the key does not exist; otherwise the search is continued with successive characters from the requested key. Each node also has a bit which indicates whether or not it represents the end of a key; if this is set to true when the end of the key array is reached, then the key exists.
 	
-	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary search tree (TST), presented in 1964\cite{Clampett-ternary}. \figurename{ \ref{fig:trie-tst}} shows the difference in structure between the standard trie and the TST.
+	From here it is natural to seek to remove the space cost of each node, since for large alphabets (such as the set of ASCII characters) the pointer arrays are likely to be large and sparsely populated. This can be done by replacing the array with a binary search tree, which maintains satisfactory lookup cost per node (in the case where the tree is balanced), whilst only using space for keys which actually exist. This formulation is known as a ternary search tree (TST), presented in 1964\cite{Clampett-ternary}. \figurename{ \ref{fig:trie-tst}} shows the difference in structure between the standard trie and the TST.
 	
 	However, one must still consider the degenerate case where the binary tree becomes linear down one side, at which point the access time grows too high. This can be avoided by using one of the available techniques to balance binary trees; in this implementation I have used a red-black binary tree, which guarantees that the height of the longest branch of the tree is no more than twice the height of the shortest branch of the tree.
 	
@@ -408,7 +406,7 @@
 	
 	As this data structure is an isolated component with a well-defined interface, it lends itself much better to conventional Software Engineering practices in terms of style and of development methodology. Use of test-driven development has given me a full set of unit tests for the data structure, each of which was defined prior to the implementation of the feature they test so that I can confirm that the interface is implemented correctly.
 	
-	The data structure is written as a template C++ class as discussed earlier, in order to make the data structure as general as possible. The only requirement is that the type being used for elements of the key array must support the < comparison operator in order to build the tree. The data structure has also been implemented as a stack of trie data structures, as this separates out functionality of different logical components from others. While some of the structures do not make much sense in isolation, it may also prove useful to other users of the data structure to be able to cast it to read-only forms. This inheritance structure is shown in \figurename{ \ref{fig:RbtTrie-inheritance}}.
+	The data structure is written as a template C++ class as discussed earlier, in order to make the data structure as general as possible. The only requirement is that the type being used for elements of the key array must support the \verb|<| comparison operator in order to build the tree. The data structure has also been implemented as a stack of trie data structures, as this separates out functionality of different logical components from others. While some of the structures do not make much sense in isolation, it may also prove useful to other users of the data structure to be able to cast it to read-only forms. This inheritance structure is shown in \figurename{ \ref{fig:RbtTrie-inheritance}}.
 	
 	\begin{figure}
 		\centering
@@ -466,13 +464,13 @@
 	
 	\subsection{Analysis API}
 	
-	The DTrace probes consumers are given access to a set of core data structures which provide different ways of indexing into a set of classes describing the actions which have been performed on a particular packet, such as the socket it came from, memory addresses which have been used to store its data, and so forth. Many of these indices are provided by the TST implementation discussed in section \ref{sec:TST-impl}, with some other indices being provided by C++ STL containers where they are appropriate.
+	The DTrace probes' consumers are given access to a set of core data structures which provide different ways of indexing into a set of classes describing the actions which have been performed on a particular packet, such as the socket it came from, memory addresses which have been used to store its data, and so forth. Many of these indices are provided by the TST implementation discussed in section \ref{sec:TST-impl}, with some other indices being provided by C++ STL containers where they are appropriate.
 	
-	Using this global data store in memory, the application then provides an API which allows the execution of pre-defined (in C++ at compile time) commands in a similar modular fashion to the DTrace probes. Instructions to execute these commands, are passed to the application via a UNIX domain socket (a means of inter-process communication on UNIX-like operating systems) from a PHP application running on a local web server. The web server simply has to serve the front-end pages, and run the PHP script which marshals command arguments and sends them to the UNIX socket.
+	Using this global data store in memory, the application then provides an API which allows the execution of pre-defined (in C++ at compile time) commands in a similar modular fashion to the DTrace probes. Instructions to execute these commands are passed to the application via a UNIX domain socket (a means of inter-process communication on UNIX-like operating systems) from a PHP application running on a local web server. The web server simply has to serve the front-end pages, and run the PHP script which marshals command arguments and sends them to the UNIX socket.
 	
 	\subsection{Front end}
 	
-	The final front-end application is built on top of Javascript using the popular JQuery\footnote{https://jquery.com/} library for convenient access to page elements, and a special library called Plotly\footnote{https://plot.ly/javascript/} for simple chart plotting on the page. These libraries have been used to make development of this part of the project more efficient, in order to allow more time to be spent on other areas. The front-end is able to display a heatmap of the system's address space to show which addresses are most commonly used by packets, with the ability to filter the address space used to compute this to focus on a specific area.
+	The final front-end application is built on top of Javascript using the popular JQuery\footnote{https://jquery.com/} library for convenient access to page elements, and a special library called Plotly\footnote{https://plot.ly/javascript/} for simple chart plotting on the page. These libraries have been used to make development of this part of the project more efficient, in order to allow more time to be spent on other areas. The front-end is able to display a heatmap of the system's address space to show which addresses are most commonly used by packets, with the ability to filter the address space used to compute this to focus on a specific area, and is also able to produce box plots of the time taken by packets to pass through each layer of the network stack.
 	
 	
 	\chapter{Evaluation}
@@ -539,6 +537,13 @@
 	
 	Based on the analysis above where I argue that the achieved throughput when the project is in use is still sufficient for the type of computer the benchmarks were run on, I claim that the project has satisfied the second part of its success criterion, which relates to the performance impact of the project.
 	
+	\begin{figure}[b]
+		\centering
+		\includegraphics[width=\linewidth]{include/ui-timing-box.png}
+		\caption{The application can display statistical information about the time packets have spent in each layer of the network stack. It queries the backend application to find what layers it understands on the current system, and then provides options to the user for them to request information about any layers they are interested in.}
+		\label{fig:ui-timing-box}
+	\end{figure}
+	
 	\subsection{Moving work into DTrace}
 	\label{sec:dtrace-iteration}
 	
@@ -551,16 +556,10 @@
 	\section{Functionality of example application}
 	
 	The example application which I have produced fulfils the requirements of extension number one in my project proposal, which was to present collected data in a user-friendly format, as well as demonstrating that the project fulfils the first part of its success criterion, namely that it collects the data in the first place. The Web-based tool allows any computer with a Web browser to be used as a client for analysis, and therefore can include non-FreeBSD systems if required.
-	
+
 	\begin{figure}
 		\centering
-		\includegraphics[width=\linewidth]{include/ui-timing-box.png}
-		\caption{The application can display statistical information about the time packets have spent in each layer of the network stack. It queries the backend application to find what layers it understands on the current system, and then provides options to the user for them to request information about any layers they are interested in.}
-		\label{fig:ui-timing-box}
-	\end{figure}
-
-	\begin{figure}[b]
-		\centering
+		\includegraphics[width=\linewidth]{include/ui-address-heatmap.png}
 		\caption{The application provides a heatmap of the kernel address space, showing which kernel memory addresses are most commonly used to store packet data. Clicking on a heatmap cell draws a new `zoomed in' heatmap of the data which fits logically within that cell.}
 		\label{fig:ui-heatmap}
 	\end{figure}
@@ -574,6 +573,8 @@
 	\section{Further Work}
 	
 	My principal proposition for further work is to add provision for bounded iteration to DTrace's D language, as I outlined in Section \ref{sec:dtrace-iteration}.
+	
+	In principle it is possible to reduce the cost of UUID generation to this project by adding an additional piece of hardware to the computer, perhaps made available by the kernel through the /dev interface, to continuously generate a pool of UUIDs. However, for this project I have decided not to use such a system so that my code can be used on systems without such external hardware. A similar /dev device could also be emulated on the system, with the kernel providing a pool of UUIDs from which values can be removed as required. Such a scheme would only improve performance for short bursts of traffic, since the pool would eventually be depleted for longer traffic flows, and so it would not improve performance over the type of flow I used to evaluate performance in this project.
 	
 	Additionally, it is clear that I chose not to use any automated static analysis tools in my work on existing kernel code as part of the project. This decision was taken because I did not feel that any benefit would be gained from doing so in this case, as it would have taken me just as long to familiarise myself with what I was looking for within the kernel code and set the tools up to do this, as it did for me to inspect the source manually. Now that I have a better understanding of the kernel code in question, in future I would consider more seriously the possibility of using such tools.
 	
