@@ -140,7 +140,11 @@
 	
 	\section{Similar Work}
 	
-	Possibly mention Resourceful here. Graeme mentioned other academic tracing projects such as X-Trace, Pinpoint. Reference these as "X describes Y, and my project is similar/different from this because..."
+	Fonseca et al.\cite{X-Trace} describes X-Trace, which provides a similar solution to my project but only for user level applications; it attaches metadata to the real data flow within the application, and then traps this prior to data transmission and logs the metadata using a separate system. While my project will be attaching metadata to kernel packets, it will not be collecting metadata together in the kernel, instead firing a DTrace probe for each event.
+	
+	The X-Trace website itself says that it has largely been superseded by another tool, Pivot Tracing, presented by Mace\cite{Pivot-Tracing}. Pivot Tracing focusses on analysing event data by using a `happens-before join' operator when aggregating data across machines on a network, and so is more comparable the existing CADETS code base rather than the code being added by this project.
+	
+	Under Linux, the Resourceful\cite{Resourceful} framework is able to collect data from auto-generated tracepoints	within the Linux kernel with very low overhead by modifying the kernel code on the fly on the running system, but Resourceful does not currently inspect the network subsystem at all.
 	
 	\section{Overall design}
 	
