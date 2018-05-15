@@ -1,0 +1,1525 @@
+diff --git a/sys/conf/NOTES b/sys/conf/NOTES
+index be9572b5ee5..697d222b0c1 100644
+--- a/sys/conf/NOTES
++++ b/sys/conf/NOTES
+@@ -634,6 +634,10 @@ options 	IPSEC			#IP security (requires device crypto)
+ options		IPSEC_SUPPORT
+ #options 	IPSEC_DEBUG		#debug for IP security
+ 
++# Disable UUID tagging of packets and remove DTrace tracepoints which would
++# use the tags. This should increase performance of the network stack.
++#!options 	NO_NET_UUID_TRACING
++
+ #
+ # SMB/CIFS requester
+ # NETSMB enables support for SMB protocol, it requires LIBMCHAIN and LIBICONV
+diff --git a/sys/conf/files b/sys/conf/files
+index 74dbb9714df..af47b7fcc2c 100644
+--- a/sys/conf/files
++++ b/sys/conf/files
+@@ -4081,6 +4081,8 @@ net/mp_ring.c			optional ether
+ net/mppcc.c			optional netgraph_mppc_compression
+ net/mppcd.c			optional netgraph_mppc_compression
+ net/netisr.c			standard
++net/net_uuid.c			standard
++net/net_uuid_kdtrace.c		standard
+ net/pfil.c			optional ether | inet
+ net/radix.c			standard
+ net/radix_mpath.c		standard
+diff --git a/sys/conf/options b/sys/conf/options
+index 2804b6d3e90..98ee8d1e9f7 100644
+--- a/sys/conf/options
++++ b/sys/conf/options
+@@ -171,6 +171,7 @@ MFI_DEBUG	opt_mfi.h
+ MFI_DECODE_LOG	opt_mfi.h
+ MPROF_BUFFERS	opt_mprof.h
+ MPROF_HASH_SIZE	opt_mprof.h
++NO_NET_UUID_TRACING
+ NEW_PCIB	opt_global.h
+ NO_ADAPTIVE_MUTEXES	opt_adaptive_mutexes.h
+ NO_ADAPTIVE_RWLOCKS
+diff --git a/sys/kern/uipc_socket.c b/sys/kern/uipc_socket.c
+index 6dc033da8bc..f126d5018f9 100644
+--- a/sys/kern/uipc_socket.c
++++ b/sys/kern/uipc_socket.c
+@@ -145,6 +145,7 @@ __FBSDID("$FreeBSD$");
+ #include <sys/syslog.h>
+ #include <netinet/in.h>
+ 
++#include <net/net_uuid_kdtrace.h>
+ #include <net/vnet.h>
+ 
+ #include <security/audit/audit.h>
+@@ -531,6 +532,7 @@ socreate(int dom, struct socket **aso, int type, int proto,
+ 	if (prp->pr_type != type)
+ 		return (EPROTOTYPE);
+ 	so = soalloc(CRED_TO_VNET(cred));
++	NET_UUID_PROBE2_UUID_STR(socket, create, &so->so_uuid, td->td_proc);
+ 	if (so == NULL)
+ 		return (ENOBUFS);
+ 
+diff --git a/sys/net/if_loop.c b/sys/net/if_loop.c
+index d5f338b4a73..e9069fbb6e2 100644
+--- a/sys/net/if_loop.c
++++ b/sys/net/if_loop.c
+@@ -56,6 +56,8 @@
+ #include <net/if_clone.h>
+ #include <net/if_types.h>
+ #include <net/netisr.h>
++#include <net/net_uuid.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/route.h>
+ #include <net/bpf.h>
+ #include <net/vnet.h>
+@@ -307,6 +309,7 @@ if_simloop(struct ifnet *ifp, struct mbuf *m, int af, int hlen)
+ 	 */
+ 	if (hlen > 0) {
+ 		if (bpf_peers_present(ifp->if_bpf)) {
++			NET_UUID_PROBE2_STR(packet, to__subsys, 'M',m, "BPF");
+ 			bpf_mtap(ifp->if_bpf, m);
+ 		}
+ 	} else {
+@@ -318,6 +321,8 @@ if_simloop(struct ifnet *ifp, struct mbuf *m, int af, int hlen)
+ 				/*
+ 				 * We need to prepend the address family.
+ 				 */
++				NET_UUID_PROBE2_STR(packet, to__subsys, 
++						'M',m, "BPF");
+ 				bpf_mtap2(V_loif->if_bpf, &af1, sizeof(af1), m);
+ 			}
+ 		}
+@@ -357,11 +362,14 @@ if_simloop(struct ifnet *ifp, struct mbuf *m, int af, int hlen)
+ #endif
+ 	default:
+ 		printf("if_simloop: can't handle af=%d\n", af);
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
+ 		return (EAFNOSUPPORT);
+ 	}
+ 	if_inc_counter(ifp, IFCOUNTER_IPACKETS, 1);
+ 	if_inc_counter(ifp, IFCOUNTER_IBYTES, m->m_pkthdr.len);
++	/* Make sure packet has a different tag for going back up the stack */
++	net_uuid_tag_child_packet(m, m);
+ 	netisr_queue(isr, m);	/* mbuf is free'd on failure. */
+ 	return (0);
+ }
+diff --git a/sys/net/net_uuid.c b/sys/net/net_uuid.c
+new file mode 100644
+index 00000000000..4945e66db31
+--- /dev/null
++++ b/sys/net/net_uuid.c
+@@ -0,0 +1,340 @@
++/*-
++ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
++ *
++ * Copyright (c) 2017 Peter Lotts
++ * All rights reserved.
++ *
++ * Portions of this software were developed by BAE Systems, the University of
++ * Cambridge Computer Laboratory, and Memorial University under DARPA/AFRL
++ * contract FA8650-15-C-7558 ("CADETS"), as part of the DARPA Transparent
++ * Computing (TC) research program.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
++ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
++ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++// Config option which disables tagging & tracing
++#include "opt_no_net_uuid_tracing.h"
++#include <sys/cdefs.h>
++__FBSDID("$FreeBSD$");
++
++
++#include <sys/param.h>
++#include <sys/kernel.h>
++#include <sys/malloc.h>
++#include <sys/mbuf.h>
++#include <sys/queue.h>
++#include <sys/syslog.h> // Logging to dmesg
++#include <sys/systm.h> // "
++
++#include <net/net_uuid.h>
++#include <net/net_uuid_kdtrace.h>
++
++// Tag type definitions are private to the implementation
++#define TAG_TYPE_UUID_STAMP	(1 | MTAG_PERSISTENT)
++
++static MALLOC_DEFINE(M_NET_UUID_LIST_ENTRY, MTAG_UUID_LIST_ENTRY_MEM_NAME,
++    "entry in a list of mbuf uuid tags");
++
++
++#define TAG_UUID_ALLOC_LEN	(sizeof(struct mtag_uuid) \
++	       		       - sizeof(struct m_tag))
++
++#define LOG_NAME "net_uuid: "
++#define LOG
++
++#ifdef NO_NET_UUID_TRACING
++// Replace all non-static functions with stubs
++
++struct mtag_uuid *
++net_uuid_tag_packet(struct mbuf *a)
++	{ return NULL; }
++struct mtag_uuid *
++net_uuid_tag_child_packet(struct mbuf *a, struct mbuf *b)
++	{ return NULL; }
++void
++net_uuid_tag_assembled_packet(struct mbuf *a, struct mbuf *b) { }
++void
++net_uuid_tag_move(struct mbuf *to, struct mbuf *from) { }
++
++struct mtag_uuid *
++net_uuid_tag_clone(struct mbuf *mbuf) { return NULL; }
++void
++net_uuid_tag_free(struct mtag_uuid *tag) { return NULL; }
++struct uuid *
++net_uuid_get_uuid(char type, void *structure) { return NULL; }
++struct uuid *
++net_uuid_get_uuid_mbuf(struct mbuf *mbuf) { return NULL; }
++struct uuid *
++net_uuid_get_uuid_tag(struct mtag_uuid *tag) { return NULL; }
++
++#else // NO_NET_UUID_TRACING
++
++static void
++net_uuid_generate(struct uuid *uuid)
++{
++	// Generate a v1 UUID for this packet
++	kern_uuidgen(uuid, 1);
++}
++
++static void
++net_uuid_copy(struct uuid *from, struct uuid *to)
++{
++	if (to == NULL)
++		return;
++	if (from != NULL)
++		memcpy(to, from, sizeof(struct uuid));
++	else
++		uuid_generate_nil(to);
++}
++
++static inline struct mtag_uuid *
++net_uuid_alloc_stamp_tag()
++{
++	return (struct mtag_uuid *) m_tag_alloc(
++			MTAG_COOKIE_NET_UUID,
++			TAG_TYPE_UUID_STAMP,
++			TAG_UUID_ALLOC_LEN,
++			M_NOWAIT);
++}
++
++static void
++net_uuid_free_stamp_tag(struct m_tag *tag)
++{
++#ifdef LOG
++	log(LOG_DEBUG, LOG_NAME "Freeing tag at address %p\n", tag);
++#endif
++	// We're going to BFS for all sub-tags to free, so set up a FIFO
++	STAILQ_HEAD(freeq_head, freeq_entry) head = 
++		STAILQ_HEAD_INITIALIZER(head);
++
++	struct freeq_entry {
++		STAILQ_ENTRY(freeq_entry) entries;
++		struct mtag_uuid *tag;
++	} *entry;
++
++	STAILQ_INIT(&head);
++
++	// Put the input tag in the queue
++	entry = malloc(sizeof(struct freeq_entry), 
++			M_NET_UUID_LIST_ENTRY, M_NOWAIT);
++	entry->tag = (struct mtag_uuid *)tag;
++	STAILQ_INSERT_HEAD(&head, entry, entries);
++
++	NET_UUID_PROBE_STR(packet, trace__stop, 'T', entry->tag);
++
++	while (!STAILQ_EMPTY(&head)) {
++		entry = STAILQ_FIRST(&head);
++		STAILQ_REMOVE_HEAD(&head, entries);
++
++		// Add any sub-tags to the queue
++		struct mtag_uuid *tag = entry->tag;
++#ifdef LOG
++		log(LOG_DEBUG, LOG_NAME "Pulled %p out of the queue\n", tag);
++#endif
++		//struct m_tag *t = (struct m_tag *)tag;
++		struct mtag_uuid *branches[] = 
++				{ tag->parent, tag->child, tag->sibling };
++		for (uint8_t i=0; i < 3; i++) {
++			if (branches[i] != NULL) {
++				struct freeq_entry *branch = malloc(
++						sizeof(struct freeq_entry),
++						M_NET_UUID_LIST_ENTRY,
++						M_NOWAIT);
++				branch->tag = branches[i];
++#ifdef LOG
++				log(LOG_DEBUG, LOG_NAME "Enqueueing %p\n",
++						branches[i]);
++#endif
++				STAILQ_INSERT_TAIL(&head, branch, entries);
++			}
++		}
++
++		// We have to use a function pointer to call
++		// m_free_tag_default() because it is inaccessible to us
++		tag->m_free_tag_default(&tag->tag);
++		free(entry, M_NET_UUID_LIST_ENTRY);
++	}
++#ifdef LOG
++	log(LOG_DEBUG, LOG_NAME "Done freeing %p\n", tag);
++#endif
++}
++
++static struct mtag_uuid *
++net_uuid_construct_stamp_tag()
++{
++	struct mtag_uuid *tag = net_uuid_alloc_stamp_tag();
++	tag->parent  = NULL;
++	tag->child   = NULL;
++	tag->sibling = NULL;
++	tag->m_free_tag_default = tag->tag.m_tag_free;
++	tag->tag.m_tag_free = &net_uuid_free_stamp_tag;
++	return tag;
++}
++
++static struct mtag_uuid *
++net_uuid_tag_deep_copy(struct mtag_uuid *tag)
++{
++	struct mtag_uuid *copy = net_uuid_construct_stamp_tag();
++	net_uuid_copy(&tag->uuid, &copy->uuid);
++	if (tag->parent != NULL)
++		copy->parent = net_uuid_tag_deep_copy(tag->parent);
++	if (tag->child != NULL)
++		copy->child = net_uuid_tag_deep_copy(tag->child);
++	if (tag->sibling != NULL)
++		copy->sibling = net_uuid_tag_deep_copy(tag->sibling);
++	return copy;
++}
++
++static inline struct mtag_uuid *
++net_uuid_tag_locate(struct mbuf *mbuf)
++{
++	return (struct mtag_uuid *)m_tag_locate(
++			mbuf,
++			MTAG_COOKIE_NET_UUID,
++			TAG_TYPE_UUID_STAMP,
++			NULL);
++}
++
++struct mtag_uuid *
++net_uuid_tag_clone(struct mbuf *mbuf)
++{
++	return net_uuid_tag_deep_copy(net_uuid_tag_locate(mbuf));
++}
++
++void
++net_uuid_tag_free(struct mtag_uuid *tag)
++{
++	if (tag != NULL)
++		net_uuid_free_stamp_tag(&tag->tag);
++}
++
++struct uuid *
++net_uuid_get_uuid(char type, void *structure)
++{
++	switch (type) {
++		case 'T':
++			return net_uuid_get_uuid_tag(
++					(struct mtag_uuid *)structure);
++		case 'M':
++			return net_uuid_get_uuid_mbuf(
++					(struct mbuf *)structure);
++		default:
++			return net_uuid_get_uuid_tag(NULL);
++	}
++}
++struct uuid *
++net_uuid_get_uuid_mbuf(struct mbuf *mbuf)
++{
++	struct mtag_uuid *tag = net_uuid_tag_locate(mbuf);
++	return net_uuid_get_uuid_tag(tag);
++}
++struct uuid *
++net_uuid_get_uuid_tag(struct mtag_uuid *tag)
++{
++	struct uuid *uuid = NULL,
++		    *tmp = malloc(sizeof(struct uuid), M_TEMP, M_NOWAIT);
++
++	if (tag != NULL)
++		uuid = &tag->uuid;
++
++	net_uuid_copy(uuid, tmp);
++	return tmp;
++}
++
++struct mtag_uuid *
++net_uuid_tag_packet(struct mbuf *packet)
++{
++	struct mtag_uuid *tag;
++
++	tag = net_uuid_tag_locate(packet);
++	if (tag != NULL)
++		return tag;
++
++	tag = net_uuid_construct_stamp_tag();
++	net_uuid_generate(&tag->uuid);
++	m_tag_prepend(packet, &tag->tag);
++
++	NET_UUID_PROBE2_STR_ADDRS(packet, trace__start, 'T', tag, packet);
++	return tag;
++}
++
++struct mtag_uuid *
++net_uuid_tag_child_packet(struct mbuf *parent, struct mbuf *child)
++{
++	struct mtag_uuid *parent_tag, *child_tag;
++
++	// Find the uuid tag of the parent
++	parent_tag = net_uuid_tag_locate(parent);
++	if (parent_tag == NULL) {
++		parent_tag = net_uuid_tag_packet(parent);
++	}
++
++	// ip_fragment turns the parent packet into the first child,
++	// so we cannot assume that child is a fresh mbuf with no uuid tag
++	child_tag = net_uuid_tag_locate(child);
++	if (child_tag != NULL) {
++		m_tag_unlink(child, &child_tag->tag);
++		if (child_tag != parent_tag) {
++			m_tag_free(&child_tag->tag);
++		}
++	}
++
++	// Allocate new child tag
++	child_tag = net_uuid_tag_packet(child);
++	child_tag->parent = net_uuid_tag_deep_copy(parent_tag);
++	return parent_tag;
++}
++
++void
++net_uuid_tag_assembled_packet(struct mbuf *assembled, struct mbuf *constituent)
++{
++	struct mtag_uuid *constituent_tag, *assembled_tag;
++
++	// Find tags on constituent and assembled
++	constituent_tag = net_uuid_tag_locate(constituent);
++	assembled_tag = net_uuid_tag_locate(assembled);
++
++	if (assembled_tag == constituent_tag) {
++		// Retag parent
++		m_tag_unlink(assembled, &assembled_tag->tag);
++		assembled_tag = NULL;
++	}
++	if (assembled_tag == NULL) {
++		assembled_tag = net_uuid_tag_packet(assembled);
++	}
++
++	constituent_tag->sibling = assembled_tag->child;
++	assembled_tag->child = constituent_tag;
++}
++void
++net_uuid_tag_move(struct mbuf *to, struct mbuf *from)
++{
++	struct mtag_uuid *tag;
++	if (from == NULL || to == NULL)
++		return;
++
++	tag = net_uuid_tag_locate(from);
++	if (tag != NULL)
++		m_tag_prepend(to, &tag->tag);
++}
++
++#endif // NO_NET_UUID_TRACING
+diff --git a/sys/net/net_uuid.h b/sys/net/net_uuid.h
+new file mode 100644
+index 00000000000..6fe285b23c9
+--- /dev/null
++++ b/sys/net/net_uuid.h
+@@ -0,0 +1,74 @@
++/*-
++ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
++ *
++ * Copyright (c) 2017 Peter Lotts
++ * All rights reserved.
++ *
++ * Portions of this software were developed by BAE Systems, the University of
++ * Cambridge Computer Laboratory, and Memorial University under DARPA/AFRL
++ * contract FA8650-15-C-7558 ("CADETS"), as part of the DARPA Transparent
++ * Computing (TC) research program.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
++ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
++ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++#ifndef _SYS_NET_UUID_H_
++#define _SYS_NET_UUID_H_
++
++// Short name used for malloc on list entries, 
++// exposed to userspace to allow tracing
++#define	MTAG_UUID_LIST_ENTRY_MEM_NAME	"mtag_uuid_list_entry"
++
++#ifdef _KERNEL
++
++#include <sys/mbuf.h>
++#include <sys/uuid.h>
++
++// This is defined here so that DTrace can use it - does it need it?
++struct mtag_uuid {
++	struct m_tag		 tag;
++	struct uuid		 uuid;
++	struct mtag_uuid	*parent;
++	struct mtag_uuid	*child;
++	struct mtag_uuid	*sibling;
++	void			(*m_free_tag_default)(struct m_tag *);
++};
++
++struct mtag_uuid *
++	net_uuid_tag_packet(struct mbuf *);
++struct mtag_uuid *
++	net_uuid_tag_child_packet(struct mbuf *, struct mbuf *);
++void	net_uuid_tag_assembled_packet(struct mbuf *, struct mbuf *);
++void	net_uuid_tag_move(struct mbuf *, struct mbuf *);
++
++struct mtag_uuid *
++	net_uuid_tag_clone(struct mbuf *mbuf); // caller free
++void	net_uuid_tag_free(struct mtag_uuid *); // accepts NULL
++
++struct uuid *
++	net_uuid_get_uuid(char type, void *structure);
++struct uuid *
++	net_uuid_get_uuid_mbuf(struct mbuf *mbuf);
++struct uuid *
++	net_uuid_get_uuid_tag(struct mtag_uuid *tag);
++
++#endif /* _KERNEL */
++#endif /* _SYS_NET_UUID_H_ */
+diff --git a/sys/net/net_uuid_kdtrace.c b/sys/net/net_uuid_kdtrace.c
+new file mode 100644
+index 00000000000..2acccd097c5
+--- /dev/null
++++ b/sys/net/net_uuid_kdtrace.c
+@@ -0,0 +1,57 @@
++/*-
++ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
++ *
++ * Copyright (c) 2018 Peter Lotts
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the
++ *    distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
++ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
++ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
++ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
++ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++ * SUCH DAMAGE.
++ *
++ * $FreeBSD$
++ */
++
++#include "opt_no_net_uuid_tracing.h"
++#include <sys/param.h>
++#include <net/net_uuid_kdtrace.h>
++
++#ifndef NO_NET_UUID_TRACING
++
++// Since this is a .c file, we are not polluting anything with this
++#define uuid_t "struct uuid *"
++
++SDT_PROVIDER_DEFINE(net_uuid);
++
++SDT_PROBE_DEFINE2(net_uuid, mem, ,	alloc,		uuid_t, uuid_t);
++
++SDT_PROBE_DEFINE2(net_uuid, packet, ,	trace__start,uuid_t, "struct mbuf *");
++SDT_PROBE_DEFINE1(net_uuid, packet, ,	trace__stop,	uuid_t);
++SDT_PROBE_DEFINE2(net_uuid, packet, ,	fragment,	uuid_t, uuid_t);
++SDT_PROBE_DEFINE1(net_uuid, packet, ,	drop,		uuid_t);
++SDT_PROBE_DEFINE2(net_uuid, packet, ,	from__socket,	uuid_t, uuid_t);
++SDT_PROBE_DEFINE2(net_uuid, packet, ,	to__socket,	uuid_t, uuid_t);
++
++SDT_PROBE_DEFINE2(net_uuid, packet, ,	layer__arrive,	uuid_t, "char *");
++SDT_PROBE_DEFINE2(net_uuid, packet, ,	layer__depart,	uuid_t, "char *");
++SDT_PROBE_DEFINE2(net_uuid, packet, ,	to__subsys,	uuid_t, "char *");
++
++SDT_PROBE_DEFINE2_XLATE(net_uuid, socket, , create,	uuid_t, uuid_t,
++						"struct proc *", "psinfo_t");
++
++#endif // NO_NET_UUID_TRACING
+diff --git a/sys/net/net_uuid_kdtrace.h b/sys/net/net_uuid_kdtrace.h
+new file mode 100644
+index 00000000000..91150dd4d52
+--- /dev/null
++++ b/sys/net/net_uuid_kdtrace.h
+@@ -0,0 +1,110 @@
++/*-
++ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
++ *
++ * Copyright (c) 2018 Peter Lotts
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the
++ *    distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
++ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
++ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
++ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
++ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++ * SUCH DAMAGE.
++ *
++ * $FreeBSD$
++ */
++
++#ifndef _SYS_NET_UUID_KDTRACE_H_
++#define	_SYS_NET_UUID_KDTRACE_H_
++
++#include "opt_no_net_uuid_tracing.h"
++#include <net/net_uuid.h>
++#include <sys/malloc.h>
++#include <sys/queue.h>
++#include <sys/param.h>
++#include <sys/sdt.h>
++
++#ifdef NO_NET_UUID_TRACING
++// Define macros as empty
++
++#define NET_UUID_PROBE_STR(mod, probe, t0, mt0)
++#define NET_UUID_PROBE_STR_W_ADDRS(mod, probe, t0, mt0)
++#define NET_UUID_PROBE2_STR_ADDRS(mod, probe, t0, mt0, m1)
++#define NET_UUID_PROBE2_STR(mod, probe, t0, mt0, arg1)
++#define NET_UUID_PROBE2_STR_STR(mod, probe, t0, mt0, t1, mt1)
++#define NET_UUID_PROBE2_UUID_STR(mod, probe, uuid0, arg1)
++#define NET_UUID_PROBE2_STR_UUID_STR(mod, probe, t0, mt0, uuid1)
++
++#else // NO_NET_UUID_TRACING
++
++#define NET_UUID_PROBE_STR(mod, probe, t0, mt0)			do {	\
++	struct uuid *id = net_uuid_get_uuid(t0, mt0);			\
++	SDT_PROBE1(net_uuid, mod, , probe, id);				\
++	free(id, M_TEMP);						\
++} while (0)
++
++#define NET_UUID_PROBE2_STR_ADDRS(mod, probe, t0, mt0, m1)	do {	\
++	struct uuid *id = net_uuid_get_uuid(t0, mt0);			\
++	SDT_PROBE2(net_uuid, mod, , probe, id, m1);			\
++	free(id, M_TEMP);						\
++} while (0)
++
++#define NET_UUID_PROBE_STR_W_ADDRS(mod, probe, t0, mt0)			\
++	NET_UUID_PROBE2_STR_ADDRS(mod, probe, t0, mt0, mt0)
++
++#define NET_UUID_PROBE2_STR(mod, probe, t0, mt0, arg1)		do {	\
++	struct uuid *id = net_uuid_get_uuid(t0, mt0);			\
++	SDT_PROBE2(net_uuid, mod, , probe, id, arg1);			\
++	free(id, M_TEMP);						\
++} while (0)
++
++#define NET_UUID_PROBE2_UUID_STR(mod, probe, uuid0, arg1)	do {	\
++	SDT_PROBE2(net_uuid, mod, , probe, uuid0, arg1);		\
++} while (0)
++
++#define NET_UUID_PROBE2_STR_UUID_STR(mod, probe, t0, mt0, uuid1) do {	\
++	struct uuid *id = net_uuid_get_uuid(t0, mt0);			\
++	SDT_PROBE2(net_uuid, mod, , probe, id, uuid1);			\
++	free(id, M_TEMP);						\
++} while (0)
++
++#define NET_UUID_PROBE2_STR_STR(mod, probe, t0, mt0, t1, mt1)	do {	\
++	struct uuid *id0 = net_uuid_get_uuid(t0, mt0);			\
++	struct uuid *id1 = net_uuid_get_uuid(t1, mt1);			\
++	SDT_PROBE2(net_uuid, mod, , probe, id0, id1);			\
++	free(id0, M_TEMP);						\
++	free(id1, M_TEMP);						\
++} while (0)
++
++SDT_PROVIDER_DECLARE(net_uuid);
++
++SDT_PROBE_DECLARE(net_uuid, mem, ,	alloc);
++
++SDT_PROBE_DECLARE(net_uuid, packet, ,	trace__start);
++SDT_PROBE_DECLARE(net_uuid, packet, ,	trace__stop);
++SDT_PROBE_DECLARE(net_uuid, packet, ,	fragment);
++SDT_PROBE_DECLARE(net_uuid, packet, ,	drop);
++SDT_PROBE_DECLARE(net_uuid, packet, ,	from__socket);
++SDT_PROBE_DECLARE(net_uuid, packet, ,	to__socket);
++
++SDT_PROBE_DECLARE(net_uuid, packet, ,	layer__arrive);
++SDT_PROBE_DECLARE(net_uuid, packet, ,	layer__depart);
++SDT_PROBE_DECLARE(net_uuid, packet, ,	to__subsys);
++
++SDT_PROBE_DECLARE(net_uuid, socket, ,	create);
++
++#endif // NO_NET_UUID_TRACING
++#endif // _SYS_NET_UUID_KDTRACE_H_
+diff --git a/sys/net/netisr.c b/sys/net/netisr.c
+index 81965631b10..2bbe96c2d98 100644
+--- a/sys/net/netisr.c
++++ b/sys/net/netisr.c
+@@ -95,6 +95,7 @@ __FBSDID("$FreeBSD$");
+ #include <net/if_var.h>
+ #include <net/netisr.h>
+ #include <net/netisr_internal.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/vnet.h>
+ 
+ /*-
+@@ -993,6 +994,7 @@ netisr_queue_workstream(struct netisr_workstream *nwsp, u_int proto,
+ 		npwp->nw_queued++;
+ 		return (0);
+ 	} else {
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
+ 		npwp->nw_qdrops++;
+ 		return (ENOBUFS);
+@@ -1045,6 +1047,7 @@ netisr_queue_src(u_int proto, uintptr_t source, struct mbuf *m)
+ 
+ #ifdef VIMAGE
+ 	if (V_netisr_enable[proto] == 0) {
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
+ 		return (ENOPROTOOPT);
+ 	}
+@@ -1098,6 +1101,7 @@ netisr_dispatch_src(u_int proto, uintptr_t source, struct mbuf *m)
+ 
+ #ifdef VIMAGE
+ 	if (V_netisr_enable[proto] == 0) {
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
+ 		return (ENOPROTOOPT);
+ 	}
+@@ -1209,6 +1213,8 @@ out_unlock:
+ int
+ netisr_dispatch(u_int proto, struct mbuf *m)
+ {
++	// Add CADETS UUID to the packet to track it through the stack
++	net_uuid_tag_packet(m);
+ 
+ 	return (netisr_dispatch_src(proto, 0, m));
+ }
+diff --git a/sys/net/pfil.c b/sys/net/pfil.c
+index b2848ea8894..849402d5fdd 100644
+--- a/sys/net/pfil.c
++++ b/sys/net/pfil.c
+@@ -48,6 +48,7 @@
+ 
+ #include <net/if.h>
+ #include <net/if_var.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/pfil.h>
+ 
+ static struct mtx pfil_global_lock;
+@@ -101,12 +102,18 @@ pfil_run_hooks(struct pfil_head *ph, struct mbuf **mp, struct ifnet *ifp,
+ 	struct packet_filter_hook *pfh;
+ 	struct mbuf *m = *mp;
+ 	int rv = 0;
++	bool probed = false;
+ 
+ 	PFIL_RLOCK(ph, &rmpt);
+ 	KASSERT(ph->ph_nhooks >= 0, ("Pfil hook count dropped < 0"));
+ 	for (pfh = pfil_chain_get(dir, ph); pfh != NULL;
+-	     pfh = TAILQ_NEXT(pfh, pfil_chain)) {
++		pfh = TAILQ_NEXT(pfh, pfil_chain)) {
+ 		if (pfh->pfil_func != NULL) {
++			if (!probed) {
++				NET_UUID_PROBE2_STR(packet, to__subsys, 'M',m,
++									"PFIL");
++				probed = true;
++			}
+ 			rv = (*pfh->pfil_func)(pfh->pfil_arg, &m, ifp, dir,
+ 			    inp);
+ 			if (rv != 0 || m == NULL)
+diff --git a/sys/netinet/ip_fastfwd.c b/sys/netinet/ip_fastfwd.c
+index df8ebe4babe..13d127a1631 100644
+--- a/sys/netinet/ip_fastfwd.c
++++ b/sys/netinet/ip_fastfwd.c
+@@ -95,6 +95,7 @@ __FBSDID("$FreeBSD$");
+ #include <net/if_types.h>
+ #include <net/if_var.h>
+ #include <net/if_dl.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/route.h>
+ #include <net/vnet.h>
+ 
+@@ -182,6 +183,7 @@ ip_tryforward(struct mbuf *m)
+ 		if (V_ip_doopts == 1)
+ 			return m;
+ 		else if (V_ip_doopts == 2) {
++			NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 			icmp_error(m, ICMP_UNREACH, ICMP_UNREACH_FILTER_PROHIB,
+ 				0, 0);
+ 			return NULL;	/* mbuf already free'd */
+@@ -275,6 +277,7 @@ passin:
+ 	if (!V_ipstealth) {
+ #endif
+ 	if (ip->ip_ttl <= IPTTLDEC) {
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		icmp_error(m, ICMP_TIMXCEED, ICMP_TIMXCEED_INTRANS, 0, 0);
+ 		return NULL;	/* mbuf already free'd */
+ 	}
+@@ -370,6 +373,8 @@ passout:
+ 		 * Send off the packet via outgoing interface
+ 		 */
+ 		IP_PROBE(send, NULL, NULL, ip, nh.nh_ifp, ip, NULL);
++		NET_UUID_PROBE2_STR(packet, layer__depart, 'M',m, "IP");
++		NET_UUID_PROBE_STR(packet, trace__stop, 'M',m);
+ 		error = (*nh.nh_ifp->if_output)(nh.nh_ifp, m,
+ 		    (struct sockaddr *)&dst, NULL);
+ 	} else {
+@@ -378,6 +383,7 @@ passout:
+ 		 */
+ 		if (ip_off & IP_DF) {
+ 			IPSTAT_INC(ips_cantfrag);
++			NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 			icmp_error(m, ICMP_UNREACH, ICMP_UNREACH_NEEDFRAG,
+ 				0, nh.nh_mtu);
+ 			goto consumed;
+@@ -390,6 +396,8 @@ passout:
+ 			    nh.nh_ifp->if_hwassist) != 0)
+ 				goto drop;
+ 			KASSERT(m != NULL, ("null mbuf and no error"));
++			NET_UUID_PROBE2_STR(packet, layer__depart, 'M',m, "IP");
++			NET_UUID_PROBE_STR(packet, trace__stop, 'M',m);
+ 			/*
+ 			 * Send off the fragments via outgoing interface
+ 			 */
+@@ -431,7 +439,9 @@ passout:
+ consumed:
+ 	return NULL;
+ drop:
+-	if (m)
++	if (m) {
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
++	}
+ 	return NULL;
+ }
+diff --git a/sys/netinet/ip_input.c b/sys/netinet/ip_input.c
+index e03ae4c07a3..37d33501ffb 100644
+--- a/sys/netinet/ip_input.c
++++ b/sys/netinet/ip_input.c
+@@ -64,6 +64,8 @@ __FBSDID("$FreeBSD$");
+ #include <net/if_dl.h>
+ #include <net/route.h>
+ #include <net/netisr.h>
++#include <net/net_uuid.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/rss_config.h>
+ #include <net/vnet.h>
+ 
+@@ -456,8 +458,10 @@ ip_input(struct mbuf *m)
+ 	uint16_t sum, ip_len;
+ 	int dchg = 0;				/* dest changed after fw */
+ 	struct in_addr odst;			/* original dst address */
++	struct mtag_uuid *tag = net_uuid_tag_clone(m); /* our free */
+ 
+ 	M_ASSERTPKTHDR(m);
++	NET_UUID_PROBE2_STR(packet, layer__arrive, 'M',m, "IP");
+ 
+ 	if (m->m_flags & M_FASTFWD_OURS) {
+ 		m->m_flags &= ~M_FASTFWD_OURS;
+@@ -475,8 +479,9 @@ ip_input(struct mbuf *m)
+ 
+ 	if (m->m_len < sizeof (struct ip) &&
+ 	    (m = m_pullup(m, sizeof (struct ip))) == NULL) {
++		NET_UUID_PROBE_STR(packet, drop, 'T',tag);
+ 		IPSTAT_INC(ips_toosmall);
+-		return;
++		goto freetag;
+ 	}
+ 	ip = mtod(m, struct ip *);
+ 
+@@ -493,7 +498,7 @@ ip_input(struct mbuf *m)
+ 	if (hlen > m->m_len) {
+ 		if ((m = m_pullup(m, hlen)) == NULL) {
+ 			IPSTAT_INC(ips_badhlen);
+-			return;
++			goto freetag;
+ 		}
+ 		ip = mtod(m, struct ip *);
+ 	}
+@@ -527,7 +532,7 @@ ip_input(struct mbuf *m)
+ #ifdef ALTQ
+ 	if (altq_input != NULL && (*altq_input)(m, AF_INET) == 0)
+ 		/* packet is dropped by traffic conditioner */
+-		return;
++		goto freetag;
+ #endif
+ 
+ 	ip_len = ntohs(ip->ip_len);
+@@ -570,7 +575,7 @@ tooshort:
+ #endif
+ 	    ) {
+ 		if ((m = ip_tryforward(m)) == NULL)
+-			return;
++			goto freetag;
+ 		if (m->m_flags & M_FASTFWD_OURS) {
+ 			m->m_flags &= ~M_FASTFWD_OURS;
+ 			ip = mtod(m, struct ip *);
+@@ -601,9 +606,9 @@ tooshort:
+ 
+ 	odst = ip->ip_dst;
+ 	if (pfil_run_hooks(&V_inet_pfil_hook, &m, ifp, PFIL_IN, NULL) != 0)
+-		return;
++		goto freetag;
+ 	if (m == NULL)			/* consumed by filter */
+-		return;
++		goto freetag;
+ 
+ 	ip = mtod(m, struct ip *);
+ 	dchg = (odst.s_addr != ip->ip_dst.s_addr);
+@@ -621,7 +626,7 @@ tooshort:
+ 			 * to some other directly connected host.
+ 			 */
+ 			ip_forward(m, 1);
+-			return;
++			goto freetag;
+ 		}
+ 	}
+ passin:
+@@ -633,7 +638,7 @@ passin:
+ 	 * to be sent and the original packet to be freed).
+ 	 */
+ 	if (hlen > sizeof (struct ip) && ip_dooptions(m, 0))
+-		return;
++		goto freetag;
+ 
+         /* greedy RSVP, snatches any PATH packet of the RSVP protocol and no
+          * matter if it is destined to another node, or whether it is 
+@@ -735,8 +740,9 @@ passin:
+ 	/* RFC 3927 2.7: Do not forward datagrams for 169.254.0.0/16. */
+ 	if (IN_LINKLOCAL(ntohl(ip->ip_dst.s_addr))) {
+ 		IPSTAT_INC(ips_cantforward);
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
+-		return;
++		goto freetag;
+ 	}
+ 	if (IN_MULTICAST(ntohl(ip->ip_dst.s_addr))) {
+ 		if (V_ip_mrouter) {
+@@ -750,8 +756,9 @@ passin:
+ 			 */
+ 			if (ip_mforward && ip_mforward(ip, ifp, m, 0) != 0) {
+ 				IPSTAT_INC(ips_cantforward);
++				NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 				m_freem(m);
+-				return;
++				goto freetag;
+ 			}
+ 
+ 			/*
+@@ -780,11 +787,12 @@ passin:
+ 	 */
+ 	if (V_ipforwarding == 0) {
+ 		IPSTAT_INC(ips_cantforward);
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
+ 	} else {
+ 		ip_forward(m, dchg);
+ 	}
+-	return;
++	goto freetag;
+ 
+ ours:
+ #ifdef IPSTEALTH
+@@ -793,7 +801,7 @@ ours:
+ 	 * if the packet is destined for us.
+ 	 */
+ 	if (V_ipstealth && hlen > sizeof (struct ip) && ip_dooptions(m, 1))
+-		return;
++		goto freetag;
+ #endif /* IPSTEALTH */
+ 
+ 	/*
+@@ -803,8 +811,10 @@ ours:
+ 	if (ip->ip_off & htons(IP_MF | IP_OFFMASK)) {
+ 		/* XXXGL: shouldn't we save & set m_flags? */
+ 		m = ip_reass(m);
+-		if (m == NULL)
+-			return;
++		if (m == NULL) {
++			NET_UUID_PROBE_STR(packet, drop, 'T',tag);
++			goto freetag;
++		}
+ 		ip = mtod(m, struct ip *);
+ 		/* Get the header length of the reassembled packet */
+ 		hlen = ip->ip_hl << 2;
+@@ -813,7 +823,7 @@ ours:
+ #if defined(IPSEC) || defined(IPSEC_SUPPORT)
+ 	if (IPSEC_ENABLED(ipv4)) {
+ 		if (IPSEC_INPUT(ipv4, m, hlen, ip->ip_p) != 0)
+-			return;
++			goto freetag;
+ 	}
+ #endif /* IPSEC */
+ 
+@@ -821,11 +831,15 @@ ours:
+ 	 * Switch out to protocol's input routine.
+ 	 */
+ 	IPSTAT_INC(ips_delivered);
++	NET_UUID_PROBE2_STR(packet, layer__depart, 'M',m, "IP");
+ 
+ 	(*inetsw[ip_protox[ip->ip_p]].pr_input)(&m, &hlen, ip->ip_p);
+-	return;
++	goto freetag;
+ bad:
++	NET_UUID_PROBE_STR(packet, drop, 'T',tag);
+ 	m_freem(m);
++freetag:
++	net_uuid_tag_free(tag);
+ }
+ 
+ /*
+@@ -953,6 +967,7 @@ ip_forward(struct mbuf *m, int srcrt)
+ 
+ 	if (m->m_flags & (M_BCAST|M_MCAST) || in_canforward(ip->ip_dst) == 0) {
+ 		IPSTAT_INC(ips_cantforward);
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
+ 		return;
+ 	}
+@@ -961,6 +976,7 @@ ip_forward(struct mbuf *m, int srcrt)
+ 	    V_ipstealth == 0 &&
+ #endif
+ 	    ip->ip_ttl <= IPTTLDEC) {
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		icmp_error(m, ICMP_TIMXCEED, ICMP_TIMXCEED_INTRANS, 0, 0);
+ 		return;
+ 	}
+@@ -1012,6 +1028,7 @@ ip_forward(struct mbuf *m, int srcrt)
+ 	if (mcopy != NULL) {
+ 		mcopy->m_len = min(ntohs(ip->ip_len), M_TRAILINGSPACE(mcopy));
+ 		mcopy->m_pkthdr.len = mcopy->m_len;
++		NET_UUID_PROBE2_STR_ADDRS(packet, drop, 'M',m, mcopy);
+ 		m_copydata(m, 0, mcopy->m_len, mtod(mcopy, caddr_t));
+ 	}
+ #ifdef IPSTEALTH
+diff --git a/sys/netinet/ip_mroute.c b/sys/netinet/ip_mroute.c
+index f495a85a36f..b78c6550f07 100644
+--- a/sys/netinet/ip_mroute.c
++++ b/sys/netinet/ip_mroute.c
+@@ -101,6 +101,7 @@ __FBSDID("$FreeBSD$");
+ #include <net/if.h>
+ #include <net/if_var.h>
+ #include <net/netisr.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/route.h>
+ #include <net/vnet.h>
+ 
+@@ -1314,6 +1315,7 @@ X_ip_mforward(struct ip *ip, struct ifnet *ifp, struct mbuf *m,
+ 	    VIF_UNLOCK();
+ 	    return ENOBUFS;
+ 	}
++	NET_UUID_PROBE2_STR_ADDRS(mem, alloc, 'M',m, mb0);
+ 
+ 	/* is there an upcall waiting for this flow ? */
+ 	hash = MFCHASH(ip->ip_src, ip->ip_dst);
+@@ -1350,6 +1352,8 @@ X_ip_mforward(struct ip *ip, struct ifnet *ifp, struct mbuf *m,
+ 	    if (mm == NULL)
+ 		goto fail1;
+ 
++	    NET_UUID_PROBE2_STR_ADDRS(mem, alloc, 'M',m, mm);
++
+ 	    /*
+ 	     * Send message to routing daemon to install
+ 	     * a route into the kernel table
+diff --git a/sys/netinet/ip_options.c b/sys/netinet/ip_options.c
+index 9a8da231bc7..1709585d76c 100644
+--- a/sys/netinet/ip_options.c
++++ b/sys/netinet/ip_options.c
+@@ -53,6 +53,8 @@ __FBSDID("$FreeBSD$");
+ #include <net/if_dl.h>
+ #include <net/route.h>
+ #include <net/netisr.h>
++#include <net/net_uuid_kdtrace.h>
++#include <net/net_uuid.h>
+ #include <net/vnet.h>
+ 
+ #include <netinet/in.h>
+@@ -223,6 +225,7 @@ nosourcerouting:
+ dropit:
+ #endif
+ 					IPSTAT_INC(ips_cantforward);
++					NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 					m_freem(m);
+ 					return (1);
+ 				}
+@@ -525,6 +528,8 @@ ip_insertoptions(struct mbuf *m, struct mbuf *opt, int *phlen)
+ 			*phlen = 0;
+ 			return (m);
+ 		}
++		NET_UUID_PROBE2_STR_ADDRS(mem, alloc, 'M',m, n);
++		net_uuid_tag_move(n, m);
+ 		m_move_pkthdr(n, m);
+ 		n->m_pkthdr.rcvif = NULL;
+ 		n->m_pkthdr.len += optlen;
+diff --git a/sys/netinet/ip_output.c b/sys/netinet/ip_output.c
+index 487c82e5c12..630d82ffea3 100644
+--- a/sys/netinet/ip_output.c
++++ b/sys/netinet/ip_output.c
+@@ -63,6 +63,8 @@ __FBSDID("$FreeBSD$");
+ #include <net/if_var.h>
+ #include <net/if_llatbl.h>
+ #include <net/netisr.h>
++#include <net/net_uuid.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/pfil.h>
+ #include <net/route.h>
+ #ifdef RADIX_MPATH
+@@ -143,6 +145,8 @@ ip_output_pfil(struct mbuf **mp, struct ifnet *ifp, struct inpcb *inp,
+ 			if (m->m_pkthdr.csum_flags & CSUM_SCTP)
+ 				m->m_pkthdr.csum_flags |= CSUM_SCTP_VALID;
+ #endif
++			/* Make sure packet has a different tag */
++			net_uuid_tag_child_packet(m, m);
+ 			*error = netisr_queue(NETISR_IP, m);
+ 			return 1; /* Finished */
+ 		}
+@@ -177,6 +181,8 @@ ip_output_pfil(struct mbuf **mp, struct ifnet *ifp, struct inpcb *inp,
+ 		m->m_pkthdr.csum_flags |=
+ 			CSUM_IP_CHECKED | CSUM_IP_VALID;
+ 
++		/* Make sure packet has a different tag */
++		net_uuid_tag_child_packet(m, m);
+ 		*error = netisr_queue(NETISR_IP, m);
+ 		return 1; /* Finished */
+ 	}
+@@ -231,6 +237,10 @@ ip_output(struct mbuf *m, struct mbuf *opt, struct route *ro, int flags,
+ #endif
+ 	M_ASSERTPKTHDR(m);
+ 
++	// Add CADETS UUID to the packet to track it through the stack
++	net_uuid_tag_packet(m);
++	NET_UUID_PROBE2_STR(packet, layer__arrive, 'M',m, "IP");
++
+ 	if (inp != NULL) {
+ 		INP_LOCK_ASSERT(inp);
+ 		M_SETFIB(m, inp->inp_inc.inc_fibnum);
+@@ -505,6 +515,7 @@ again:
+ 		 * the loopback interface.
+ 		 */
+ 		if (ip->ip_ttl == 0 || ifp->if_flags & IFF_LOOPBACK) {
++			NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 			m_freem(m);
+ 			goto done;
+ 		}
+@@ -652,6 +663,8 @@ sendit:
+ 		 */
+ 		m_clrprotoflags(m);
+ 		IP_PROBE(send, NULL, NULL, ip, ifp, ip, NULL);
++		NET_UUID_PROBE2_STR(packet, layer__depart, 'M',m, "IP");
++		NET_UUID_PROBE_STR(packet, trace__stop, 'M',m);
+ #ifdef RATELIMIT
+ 		if (inp != NULL) {
+ 			if (inp->inp_flags2 & INP_RATE_LIMIT_CHANGED)
+@@ -704,6 +717,7 @@ sendit:
+ 
+ 			IP_PROBE(send, NULL, NULL, mtod(m, struct ip *), ifp,
+ 			    mtod(m, struct ip *), NULL);
++			NET_UUID_PROBE_STR(packet, trace__stop, 'M',m);
+ #ifdef RATELIMIT
+ 			if (inp != NULL) {
+ 				if (inp->inp_flags2 & INP_RATE_LIMIT_CHANGED)
+@@ -721,8 +735,10 @@ sendit:
+ 			if (error == EAGAIN)
+ 				in_pcboutput_eagain(inp);
+ #endif
+-		} else
++		} else {
++			NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 			m_freem(m);
++		}
+ 	}
+ 
+ 	if (error == 0)
+@@ -742,6 +758,7 @@ done:
+ 		ifa_free(&ia->ia_ifa);
+ 	return (error);
+ bad:
++	NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 	m_freem(m);
+ 	goto done;
+ }
+@@ -767,6 +784,7 @@ ip_fragment(struct ip *ip, struct mbuf **m_frag, int mtu,
+ 	struct mbuf **mnext;
+ 	int nfrags;
+ 	uint16_t ip_len, ip_off;
++	struct mtag_uuid *m0_tag;
+ 
+ 	ip_len = ntohs(ip->ip_len);
+ 	ip_off = ntohs(ip->ip_off);
+@@ -897,6 +915,8 @@ smart_frag_failure:
+ #ifdef MAC
+ 		mac_netinet_fragment(m0, m);
+ #endif
++		net_uuid_tag_child_packet(m0, m);
++		NET_UUID_PROBE2_STR_STR(packet, fragment, 'M',m0, 'M',m);
+ 		mhip->ip_off = htons(mhip->ip_off);
+ 		mhip->ip_sum = 0;
+ 		if (m->m_pkthdr.csum_flags & CSUM_IP & ~if_hwassist_flags) {
+@@ -906,6 +926,10 @@ smart_frag_failure:
+ 		*mnext = m;
+ 		mnext = &m->m_nextpkt;
+ 	}
++	m0_tag = net_uuid_tag_child_packet(m0, m0);
++	NET_UUID_PROBE2_STR_STR(packet, fragment, 'T',m0_tag, 'M',m0);
++	NET_UUID_PROBE_STR(packet, trace__stop, 'T',m0_tag);
++
+ 	IPSTAT_ADD(ips_ofragments, nfrags);
+ 
+ 	/*
+@@ -1408,15 +1432,19 @@ static void
+ ip_mloopback(struct ifnet *ifp, const struct mbuf *m, int hlen)
+ {
+ 	struct ip *ip;
+-	struct mbuf *copym;
++	struct mbuf *copym, *firstcopym;
+ 
+ 	/*
+ 	 * Make a deep copy of the packet because we're going to
+ 	 * modify the pack in order to generate checksums.
+ 	 */
+ 	copym = m_dup(m, M_NOWAIT);
+-	if (copym != NULL && (!M_WRITABLE(copym) || copym->m_len < hlen))
++	firstcopym = copym;
++	NET_UUID_PROBE_STR_W_ADDRS(mem, alloc, 'M',copym);
++	if (copym != NULL && (!M_WRITABLE(copym) || copym->m_len < hlen)) {
+ 		copym = m_pullup(copym, hlen);
++		NET_UUID_PROBE2_STR_ADDRS(mem, alloc, 'M',firstcopym, copym);
++	}
+ 	if (copym != NULL) {
+ 		/* If needed, compute the checksum and mark it as valid. */
+ 		if (copym->m_pkthdr.csum_flags & CSUM_DELAY_DATA) {
+diff --git a/sys/netinet/ip_reass.c b/sys/netinet/ip_reass.c
+index fbf9c176956..a93f81d2732 100644
+--- a/sys/netinet/ip_reass.c
++++ b/sys/netinet/ip_reass.c
+@@ -48,6 +48,8 @@ __FBSDID("$FreeBSD$");
+ 
+ #include <net/rss_config.h>
+ #include <net/netisr.h>
++#include <net/net_uuid.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/vnet.h>
+ 
+ #include <netinet/in.h>
+@@ -160,6 +162,7 @@ ip_reass(struct mbuf *m)
+ 	if (V_noreass == 1 || V_maxfragsperpacket == 0) {
+ 		IPSTAT_INC(ips_fragments);
+ 		IPSTAT_INC(ips_fragdropped);
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
+ 		return (NULL);
+ 	}
+@@ -180,6 +183,7 @@ ip_reass(struct mbuf *m)
+ 		if (ip->ip_len == htons(0) || (ntohs(ip->ip_len) & 0x7) != 0) {
+ 			IPSTAT_INC(ips_toosmall); /* XXX */
+ 			IPSTAT_INC(ips_fragdropped);
++			NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 			m_freem(m);
+ 			return (NULL);
+ 		}
+@@ -370,6 +374,7 @@ ip_reass(struct mbuf *m)
+ 	t = m->m_next;
+ 	m->m_next = NULL;
+ 	m_cat(m, t);
++	net_uuid_tag_assembled_packet(m, m);
+ 	nq = q->m_nextpkt;
+ 	q->m_nextpkt = NULL;
+ 	for (q = nq; q != NULL; q = nq) {
+@@ -378,6 +383,7 @@ ip_reass(struct mbuf *m)
+ 		m->m_pkthdr.csum_flags &= q->m_pkthdr.csum_flags;
+ 		m->m_pkthdr.csum_data += q->m_pkthdr.csum_data;
+ 		m_cat(m, q);
++		net_uuid_tag_assembled_packet(m, q);
+ 	}
+ 	/*
+ 	 * In order to do checksumming faster we do 'end-around carry' here
+@@ -448,6 +454,7 @@ dropfrag:
+ 	IPSTAT_INC(ips_fragdropped);
+ 	if (fp != NULL)
+ 		fp->ipq_nfrags--;
++	NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 	m_freem(m);
+ done:
+ 	IPQ_UNLOCK(hash);
+@@ -627,6 +634,7 @@ ipq_reuse(int start)
+ 			while (fp->ipq_frags) {
+ 				m = fp->ipq_frags;
+ 				fp->ipq_frags = m->m_nextpkt;
++				NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 				m_freem(m);
+ 			}
+ 			TAILQ_REMOVE(&V_ipq[i].head, fp, ipq_list);
+@@ -651,6 +659,7 @@ ipq_free(struct ipqhead *fhp, struct ipq *fp)
+ 	while (fp->ipq_frags) {
+ 		q = fp->ipq_frags;
+ 		fp->ipq_frags = q->m_nextpkt;
++		NET_UUID_PROBE_STR(packet, drop, 'M',q);
+ 		m_freem(q);
+ 	}
+ 	TAILQ_REMOVE(fhp, fp, ipq_list);
+diff --git a/sys/netinet/tcp_input.c b/sys/netinet/tcp_input.c
+index 904613492d0..f02af427752 100644
+--- a/sys/netinet/tcp_input.c
++++ b/sys/netinet/tcp_input.c
+@@ -80,6 +80,7 @@ __FBSDID("$FreeBSD$");
+ 
+ #include <net/if.h>
+ #include <net/if_var.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/route.h>
+ #include <net/vnet.h>
+ 
+@@ -613,6 +614,8 @@ tcp_input(struct mbuf **mp, int *offp, int proto)
+ 	to.to_flags = 0;
+ 	TCPSTAT_INC(tcps_rcvtotal);
+ 
++	NET_UUID_PROBE2_STR(packet, layer__arrive, 'M',m, "TCP");
++
+ #ifdef INET6
+ 	if (isipv6) {
+ 		/* IP6_EXTHDR_CHECK() is already done at tcp6_input(). */
+@@ -1413,6 +1416,7 @@ tfo_socket_result:
+ 	}
+ #endif
+ 	TCP_PROBE5(receive, NULL, tp, m, tp, th);
++	NET_UUID_PROBE2_STR_UUID_STR(packet, to__socket, 'M',m, &so->so_uuid);
+ 
+ 	/*
+ 	 * Segment belongs to a connection in SYN_SENT, ESTABLISHED or later
+@@ -1935,6 +1939,8 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
+ 					    newsize, so, NULL))
+ 						so->so_rcv.sb_flags &= ~SB_AUTOSIZE;
+ 				m_adj(m, drop_hdrlen);	/* delayed header drop */
++				NET_UUID_PROBE2_STR(packet, layer__depart,
++								'M',m, "TCP");
+ 				sbappendstream_locked(&so->so_rcv, m, 0);
+ 			}
+ 			/* NB: sorwakeup_locked() does an implicit unlock. */
+@@ -3071,8 +3077,11 @@ dodata:							/* XXX */
+ 			SOCKBUF_LOCK(&so->so_rcv);
+ 			if (so->so_rcv.sb_state & SBS_CANTRCVMORE)
+ 				m_freem(m);
+-			else
++			else {
++				NET_UUID_PROBE2_STR(packet, layer__depart,
++								'M',m, "TCP");
+ 				sbappendstream_locked(&so->so_rcv, m, 0);
++			}
+ 			/* NB: sorwakeup_locked() does an implicit unlock. */
+ 			sorwakeup_locked(so);
+ 		} else {
+diff --git a/sys/netinet/tcp_output.c b/sys/netinet/tcp_output.c
+index 2151caa1e49..7f6c00d73c4 100644
+--- a/sys/netinet/tcp_output.c
++++ b/sys/netinet/tcp_output.c
+@@ -56,6 +56,8 @@ __FBSDID("$FreeBSD$");
+ #include <sys/sysctl.h>
+ 
+ #include <net/if.h>
++#include <net/net_uuid.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/route.h>
+ #include <net/vnet.h>
+ 
+@@ -1020,6 +1022,12 @@ send:
+ 		m->m_data += max_linkhdr;
+ 		m->m_len = hdrlen;
+ 
++		// Tag packet with UUID, and show where it came from
++		net_uuid_tag_packet(m);
++		NET_UUID_PROBE2_STR(packet, layer__arrive, 'M',m, "TCP");
++		NET_UUID_PROBE2_STR_UUID_STR(packet, from__socket,
++				'M',m, &so->so_uuid);
++
+ 		/*
+ 		 * Start the m_copy functions from the closest mbuf
+ 		 * to the offset in the socket buffer chain.
+@@ -1039,6 +1047,7 @@ send:
+ 				sack_rxmit = 0;
+ 				goto out;
+ 			}
++			NET_UUID_PROBE2_STR(mem, alloc, 'M',m, m->m_next);
+ 		}
+ 
+ 		/*
+@@ -1076,6 +1085,12 @@ send:
+ #endif
+ 		m->m_data += max_linkhdr;
+ 		m->m_len = hdrlen;
++
++		// Tag packet with UUID, and show where it came from
++		net_uuid_tag_packet(m);
++		NET_UUID_PROBE2_STR(packet, layer__arrive, 'M',m, "TCP");
++		NET_UUID_PROBE2_STR_UUID_STR(packet, from__socket,
++				'M',m, &so->so_uuid);
+ 	}
+ 	SOCKBUF_UNLOCK_ASSERT(&so->so_snd);
+ 	m->m_pkthdr.rcvif = (struct ifnet *)0;
+@@ -1365,6 +1380,7 @@ send:
+ 		tcp_pcap_add(th, m, &(tp->t_outpkts));
+ #endif
+ 
++		NET_UUID_PROBE2_STR(packet, layer__depart, 'M',m, "TCP");
+ 		/* TODO: IPv6 IP6TOS_ECT bit on */
+ 		error = ip6_output(m, tp->t_inpcb->in6p_outputopts,
+ 		    &tp->t_inpcb->inp_route6,
+@@ -1410,6 +1426,7 @@ send:
+ 	tcp_pcap_add(th, m, &(tp->t_outpkts));
+ #endif
+ 
++	NET_UUID_PROBE2_STR(packet, layer__depart, 'M',m, "TCP");
+ 	error = ip_output(m, tp->t_inpcb->inp_options, &tp->t_inpcb->inp_route,
+ 	    ((so->so_options & SO_DONTROUTE) ? IP_ROUTETOIF : 0), 0,
+ 	    tp->t_inpcb);
+diff --git a/sys/netinet/udp_usrreq.c b/sys/netinet/udp_usrreq.c
+index 670182ece8b..4e6aed772d0 100644
+--- a/sys/netinet/udp_usrreq.c
++++ b/sys/netinet/udp_usrreq.c
+@@ -70,6 +70,7 @@ __FBSDID("$FreeBSD$");
+ 
+ #include <net/if.h>
+ #include <net/if_var.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/route.h>
+ #include <net/rss_config.h>
+ 
+@@ -374,6 +375,8 @@ udp_append(struct inpcb *inp, struct ip *ip, struct mbuf *n, int off,
+ 	m_adj(n, off);
+ 
+ 	so = inp->inp_socket;
++	NET_UUID_PROBE2_STR_UUID_STR(packet, to__socket, 'M',n, &so->so_uuid);
++	NET_UUID_PROBE2_STR(packet, layer__depart, 'M',n, "UDP");
+ 	SOCKBUF_LOCK(&so->so_rcv);
+ 	if (sbappendaddr_locked(&so->so_rcv, append_sa, n, opts) == 0) {
+ 		SOCKBUF_UNLOCK(&so->so_rcv);
+@@ -406,6 +409,7 @@ udp_input(struct mbuf **mp, int *offp, int proto)
+ 	ifp = m->m_pkthdr.rcvif;
+ 	*mp = NULL;
+ 	UDPSTAT_INC(udps_ipackets);
++	NET_UUID_PROBE2_STR(packet, layer__arrive, 'M',m, "UDP");
+ 
+ 	/*
+ 	 * Strip IP options, if any; should skip this, make available to
+@@ -1118,6 +1122,8 @@ udp_output(struct inpcb *inp, struct mbuf *m, struct sockaddr *addr,
+ 	uint32_t flowid = 0;
+ 	uint8_t flowtype = M_HASHTYPE_NONE;
+ 
++	NET_UUID_PROBE2_STR(packet, layer__arrive, 'M',m, "UDP");
++
+ 	/*
+ 	 * udp_output() may need to temporarily bind or connect the current
+ 	 * inpcb.  As such, we don't know up front whether we will need the
+@@ -1521,6 +1527,7 @@ udp_output(struct inpcb *inp, struct mbuf *m, struct sockaddr *addr,
+ 	else if (unlock_udbinfo == UH_RLOCKED)
+ 		INP_HASH_RUNLOCK(pcbinfo);
+ 	UDP_PROBE(send, NULL, inp, &ui->ui_i, inp, &ui->ui_u);
++	NET_UUID_PROBE2_STR(packet, layer__depart, 'M',m, "UDP");
+ 	error = ip_output(m, inp->inp_options,
+ 	    (unlock_inp == UH_WLOCKED ? &inp->inp_route : NULL), ipflags,
+ 	    inp->inp_moptions, inp);
+diff --git a/sys/netipsec/ipsec_output.c b/sys/netipsec/ipsec_output.c
+index c7c5d0ec51f..5108461bc09 100644
+--- a/sys/netipsec/ipsec_output.c
++++ b/sys/netipsec/ipsec_output.c
+@@ -50,6 +50,7 @@
+ #include <net/if.h>
+ #include <net/if_enc.h>
+ #include <net/if_var.h>
++#include <net/net_uuid_kdtrace.h>
+ #include <net/vnet.h>
+ 
+ #include <netinet/in.h>
+@@ -276,8 +277,10 @@ ipsec4_perform_request(struct mbuf *m, struct secpolicy *sp,
+ 	return (error);
+ bad:
+ 	IPSECSTAT_INC(ips_out_inval);
+-	if (m != NULL)
++	if (m != NULL) {
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
++	}
+ 	if (sav != NULL)
+ 		key_freesav(&sav);
+ 	key_freesp(&sp);
+@@ -844,9 +847,11 @@ ipsec_prepend(struct mbuf *m, int len, int how)
+ 	}
+ 	n = m_gethdr(how, m->m_type);
+ 	if (n == NULL) {
++		NET_UUID_PROBE_STR(packet, drop, 'M',m);
+ 		m_freem(m);
+ 		return (NULL);
+ 	}
++	NET_UUID_PROBE2_STR_ADDRS(mem, alloc, 'M',m, n);
+ 	m_move_pkthdr(n, m);
+ 	n->m_next = m;
+ 	if (len + IPSEC_TRAILINGSPACE < M_SIZE(n))
+diff --git a/sys/sys/mbuf.h b/sys/sys/mbuf.h
+index 4f3524b70eb..2b786dbfbcc 100644
+--- a/sys/sys/mbuf.h
++++ b/sys/sys/mbuf.h
+@@ -1105,6 +1105,7 @@ extern int		nmbclusters;	/* Maximum number of clusters */
+ #define	PACKET_TAG_ND_OUTGOING			30 /* ND outgoing */
+ 
+ /* Specific cookies and tags. */
++#define MTAG_COOKIE_NET_UUID			1  /* cookie for net_uuid tags*/
+ 
+ /* Packet tag routines. */
+ struct m_tag	*m_tag_alloc(u_int32_t, int, int, int);
