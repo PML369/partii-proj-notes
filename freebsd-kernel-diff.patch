@@ -105,10 +105,10 @@ index d5f338b4a73..e9069fbb6e2 100644
  }
 diff --git a/sys/net/net_uuid.c b/sys/net/net_uuid.c
 new file mode 100644
-index 00000000000..4945e66db31
+index 00000000000..a3126d4d4d7
 --- /dev/null
 +++ b/sys/net/net_uuid.c
-@@ -0,0 +1,340 @@
+@@ -0,0 +1,333 @@
 +/*-
 + * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
 + *
@@ -153,8 +153,6 @@ index 00000000000..4945e66db31
 +#include <sys/malloc.h>
 +#include <sys/mbuf.h>
 +#include <sys/queue.h>
-+#include <sys/syslog.h> // Logging to dmesg
-+#include <sys/systm.h> // "
 +
 +#include <net/net_uuid.h>
 +#include <net/net_uuid_kdtrace.h>
@@ -168,9 +166,6 @@ index 00000000000..4945e66db31
 +
 +#define TAG_UUID_ALLOC_LEN	(sizeof(struct mtag_uuid) \
 +	       		       - sizeof(struct m_tag))
-+
-+#define LOG_NAME "net_uuid: "
-+#define LOG
 +
 +#ifdef NO_NET_UUID_TRACING
 +// Replace all non-static functions with stubs
@@ -203,7 +198,8 @@ index 00000000000..4945e66db31
 +net_uuid_generate(struct uuid *uuid)
 +{
 +	// Generate a v1 UUID for this packet
-+	kern_uuidgen(uuid, 1);
++	if (uuid != NULL)
++		kern_uuidgen(uuid, 1);
 +}
 +
 +static void
@@ -230,9 +226,6 @@ index 00000000000..4945e66db31
 +static void
 +net_uuid_free_stamp_tag(struct m_tag *tag)
 +{
-+#ifdef LOG
-+	log(LOG_DEBUG, LOG_NAME "Freeing tag at address %p\n", tag);
-+#endif
 +	// We're going to BFS for all sub-tags to free, so set up a FIFO
 +	STAILQ_HEAD(freeq_head, freeq_entry) head = 
 +		STAILQ_HEAD_INITIALIZER(head);
@@ -258,10 +251,6 @@ index 00000000000..4945e66db31
 +
 +		// Add any sub-tags to the queue
 +		struct mtag_uuid *tag = entry->tag;
-+#ifdef LOG
-+		log(LOG_DEBUG, LOG_NAME "Pulled %p out of the queue\n", tag);
-+#endif
-+		//struct m_tag *t = (struct m_tag *)tag;
 +		struct mtag_uuid *branches[] = 
 +				{ tag->parent, tag->child, tag->sibling };
 +		for (uint8_t i=0; i < 3; i++) {
@@ -271,10 +260,6 @@ index 00000000000..4945e66db31
 +						M_NET_UUID_LIST_ENTRY,
 +						M_NOWAIT);
 +				branch->tag = branches[i];
-+#ifdef LOG
-+				log(LOG_DEBUG, LOG_NAME "Enqueueing %p\n",
-+						branches[i]);
-+#endif
 +				STAILQ_INSERT_TAIL(&head, branch, entries);
 +			}
 +		}
@@ -284,9 +269,6 @@ index 00000000000..4945e66db31
 +		tag->m_free_tag_default(&tag->tag);
 +		free(entry, M_NET_UUID_LIST_ENTRY);
 +	}
-+#ifdef LOG
-+	log(LOG_DEBUG, LOG_NAME "Done freeing %p\n", tag);
-+#endif
 +}
 +
 +static struct mtag_uuid *
@@ -304,6 +286,9 @@ index 00000000000..4945e66db31
 +static struct mtag_uuid *
 +net_uuid_tag_deep_copy(struct mtag_uuid *tag)
 +{
++	if (tag == NULL)
++		return NULL;
++
 +	struct mtag_uuid *copy = net_uuid_construct_stamp_tag();
 +	net_uuid_copy(&tag->uuid, &copy->uuid);
 +	if (tag->parent != NULL)
@@ -318,6 +303,8 @@ index 00000000000..4945e66db31
 +static inline struct mtag_uuid *
 +net_uuid_tag_locate(struct mbuf *mbuf)
 +{
++	if (mbuf == NULL)
++		return NULL;
 +	return (struct mtag_uuid *)m_tag_locate(
 +			mbuf,
 +			MTAG_COOKIE_NET_UUID,
@@ -374,6 +361,8 @@ index 00000000000..4945e66db31
 +struct mtag_uuid *
 +net_uuid_tag_packet(struct mbuf *packet)
 +{
++	if (packet == NULL)
++		return NULL;
 +	struct mtag_uuid *tag;
 +
 +	tag = net_uuid_tag_locate(packet);
@@ -424,14 +413,18 @@ index 00000000000..4945e66db31
 +	constituent_tag = net_uuid_tag_locate(constituent);
 +	assembled_tag = net_uuid_tag_locate(assembled);
 +
++	if (constituent_tag == NULL)
++		return;
++	if (assembled_tag == NULL) {
++		assembled_tag = net_uuid_tag_packet(assembled);
++	}
 +	if (assembled_tag == constituent_tag) {
 +		// Retag parent
 +		m_tag_unlink(assembled, &assembled_tag->tag);
 +		assembled_tag = NULL;
 +	}
-+	if (assembled_tag == NULL) {
-+		assembled_tag = net_uuid_tag_packet(assembled);
-+	}
++	if (assembled_tag == NULL)
++		return;
 +
 +	constituent_tag->sibling = assembled_tag->child;
 +	assembled_tag->child = constituent_tag;
